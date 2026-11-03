@@ -1,5 +1,5 @@
--- language: Lua, file: loki_v15_final.lua, target: Universal
-local LOKI_VERSION = "v15.0 Final"
+-- language: Lua, file: loki_v19_1.lua, target: Universal
+local LOKI_VERSION = "v19.1"
 print("[LOKI " .. LOKI_VERSION .. "] start")
 
 local ok, err = pcall(function()
@@ -18,6 +18,7 @@ local ok, err = pcall(function()
 
     local LP = Players.LocalPlayer
     local Camera = Workspace.CurrentCamera
+    local intro_active = true
 
     local old = CoreGui:FindFirstChild("Menu_Loki")
     if old then old:Destroy() end
@@ -31,6 +32,7 @@ local ok, err = pcall(function()
         bg = Color3.fromRGB(8, 14, 8), bg2 = Color3.fromRGB(16, 26, 16), bg3 = Color3.fromRGB(26, 42, 26),
         accent = Color3.fromRGB(0, 255, 110), accent_d = Color3.fromRGB(0, 150, 60), accent_g = Color3.fromRGB(130, 255, 175),
         esp_green = Color3.fromRGB(0, 255, 100),
+        killer = Color3.fromRGB(255, 20, 20),
         purple = Color3.fromRGB(160, 60, 255), purple_d = Color3.fromRGB(80, 20, 140),
         danger = Color3.fromRGB(255, 60, 60), danger_d = Color3.fromRGB(160, 30, 30),
         text = Color3.fromRGB(220, 255, 225), off = Color3.fromRGB(50, 65, 50),
@@ -52,7 +54,7 @@ local ok, err = pcall(function()
             s.SoundId = id; s.Volume = vol or 0.7; s.PlaybackSpeed = pitch or 1
             s.Parent = SoundService
             pcall(function() SoundService:PlayLocalSound(s) end)
-            task.delay(15, function() pcall(function() s:Destroy() end) end)
+            task.delay(10, function() pcall(function() s:Destroy() end) end)
         end)
     end
 
@@ -101,6 +103,19 @@ local ok, err = pcall(function()
             })
             t:Play(); t.Completed:Connect(function() d:Destroy() end)
         end
+    end
+
+    local function scanline_pass(parent, color, thick, dur)
+        local sl = Instance.new("Frame")
+        sl.Size = UDim2.new(1, 0, 0, thick or 3)
+        sl.Position = UDim2.new(0, 0, 0, -10)
+        sl.BackgroundColor3 = color or C.accent_g
+        sl.BackgroundTransparency = 0.15
+        sl.BorderSizePixel = 0; sl.ZIndex = 215; sl.Parent = parent
+        local t = TweenService:Create(sl, TweenInfo.new(dur or 0.6, Enum.EasingStyle.Linear), {
+            Position = UDim2.new(0, 0, 1, 10), BackgroundTransparency = 1
+        })
+        t:Play(); t.Completed:Connect(function() sl:Destroy() end)
     end
 
     local MAIN_W = 340
@@ -158,10 +173,60 @@ local ok, err = pcall(function()
 
     task.spawn(function()
         while main.Parent do
-            TweenService:Create(main_stroke, TweenInfo.new(1.8, Enum.EasingStyle.Sine), { Transparency = 0.7 }):Play()
-            task.wait(1.8); if not main.Parent then break end
-            TweenService:Create(main_stroke, TweenInfo.new(1.8, Enum.EasingStyle.Sine), { Transparency = 0.25 }):Play()
-            task.wait(1.8)
+            TweenService:Create(main_stroke, TweenInfo.new(2.2, Enum.EasingStyle.Sine), { Transparency = 0.7 }):Play()
+            task.wait(2.2); if not main.Parent then break end
+            TweenService:Create(main_stroke, TweenInfo.new(2.2, Enum.EasingStyle.Sine), { Transparency = 0.25 }):Play()
+            task.wait(2.2)
+        end
+    end)
+
+    local orbit_dot = Instance.new("Frame")
+    orbit_dot.Size = UDim2.new(0, 6, 0, 6)
+    orbit_dot.BackgroundColor3 = C.accent_g
+    orbit_dot.BorderSizePixel = 0
+    orbit_dot.AnchorPoint = Vector2.new(0.5, 0.5)
+    orbit_dot.ZIndex = 8
+    orbit_dot.Visible = false
+    orbit_dot.Parent = main
+    Instance.new("UICorner", orbit_dot).CornerRadius = UDim.new(1, 0)
+
+    task.spawn(function()
+        local t = 0
+        while main.Parent do
+            if not main.Visible or intro_active then
+                orbit_dot.Visible = false
+            else
+                orbit_dot.Visible = true
+                t = t + 0.012
+                local perimeter = 2 * (MAIN_W + MAIN_H)
+                local pos = (t % 1) * perimeter
+                local x, y
+                if pos < MAIN_W then x, y = pos, 0
+                elseif pos < MAIN_W + MAIN_H then x, y = MAIN_W, pos - MAIN_W
+                elseif pos < 2*MAIN_W + MAIN_H then x, y = MAIN_W - (pos - MAIN_W - MAIN_H), MAIN_H
+                else x, y = 0, MAIN_H - (pos - 2*MAIN_W - MAIN_H) end
+                orbit_dot.Position = UDim2.fromOffset(x, y)
+            end
+            task.wait(0.033)
+        end
+    end)
+
+    task.spawn(function()
+        while main.Parent do
+            task.wait(8)
+            if main.Visible and not intro_active then
+                local sl = Instance.new("Frame")
+                sl.Size = UDim2.new(1, 0, 0, 30)
+                sl.Position = UDim2.new(0, 0, 0, -30)
+                sl.BackgroundColor3 = C.accent; sl.BackgroundTransparency = 0.85
+                sl.BorderSizePixel = 0; sl.ZIndex = 9; sl.Parent = main
+                Instance.new("UICorner", sl).CornerRadius = UDim.new(0, 10)
+                local tw = TweenService:Create(sl, TweenInfo.new(1.5, Enum.EasingStyle.Linear), {
+                    Position = UDim2.new(0, 0, 1, 30), BackgroundTransparency = 1
+                })
+                tw:Play()
+                tw.Completed:Connect(function() sl:Destroy() end)
+            end
         end
     end)
 
@@ -184,7 +249,7 @@ local ok, err = pcall(function()
             for _, b in ipairs(brackets) do
                 if b.Parent then TweenService:Create(b, TweenInfo.new(0.6, Enum.EasingStyle.Sine), { BackgroundTransparency = target }):Play() end
             end
-            task.wait(0.7)
+            task.wait(1.2)
         end
     end)
 
@@ -221,13 +286,13 @@ local ok, err = pcall(function()
     task.spawn(function()
         for _, seg in ipairs(tree_segs) do
             task.spawn(function()
-                task.wait(math.random() * 2.5)
+                task.wait(math.random() * 3)
                 while seg.Parent do
-                    TweenService:Create(seg, TweenInfo.new(0.7 + math.random() * 0.9, Enum.EasingStyle.Sine), { BackgroundTransparency = 0.9 }):Play()
-                    task.wait(0.7 + math.random() * 0.9)
+                    TweenService:Create(seg, TweenInfo.new(2, Enum.EasingStyle.Sine), { BackgroundTransparency = 0.85 }):Play()
+                    task.wait(2)
                     if not seg.Parent then break end
-                    TweenService:Create(seg, TweenInfo.new(0.7 + math.random() * 0.9, Enum.EasingStyle.Sine), { BackgroundTransparency = 0.08 }):Play()
-                    task.wait(0.7 + math.random() * 0.9)
+                    TweenService:Create(seg, TweenInfo.new(2, Enum.EasingStyle.Sine), { BackgroundTransparency = 0.15 }):Play()
+                    task.wait(2)
                 end
             end)
         end
@@ -243,10 +308,10 @@ local ok, err = pcall(function()
     title_stroke.Color = C.accent; title_stroke.Thickness = 1.6; title_stroke.Transparency = 0.55
     task.spawn(function()
         while title.Parent do
-            TweenService:Create(title_stroke, TweenInfo.new(1.5, Enum.EasingStyle.Sine), { Transparency = 0.9 }):Play()
-            task.wait(1.5); if not title.Parent then break end
-            TweenService:Create(title_stroke, TweenInfo.new(1.5, Enum.EasingStyle.Sine), { Transparency = 0.15 }):Play()
-            task.wait(1.5)
+            TweenService:Create(title_stroke, TweenInfo.new(2, Enum.EasingStyle.Sine), { Transparency = 0.9 }):Play()
+            task.wait(2); if not title.Parent then break end
+            TweenService:Create(title_stroke, TweenInfo.new(2, Enum.EasingStyle.Sine), { Transparency = 0.15 }):Play()
+            task.wait(2)
         end
     end)
 
@@ -275,14 +340,27 @@ local ok, err = pcall(function()
 
     local tab_frames, tab_buttons = {}, {}
     local function switch_tab(name)
-        for n, f in pairs(tab_frames) do f.Visible = (n == name) end
+        for n, f in pairs(tab_frames) do
+            if n == name then
+                f.Visible = true
+                f.Position = UDim2.new(0, MAIN_W, 0, 90)
+                TweenService:Create(f, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                    Position = UDim2.new(0, 10, 0, 90)
+                }):Play()
+            else f.Visible = false end
+        end
         for n, b in pairs(tab_buttons) do
             if n == name then
                 TweenService:Create(b, TweenInfo.new(0.15), { BackgroundColor3 = C.accent_d }):Play()
                 b.TextColor3 = Color3.new(0, 0, 0)
+                local stk = b:FindFirstChildOfClass("UIStroke")
+                if not stk then stk = Instance.new("UIStroke", b); stk.Color = C.accent_g; stk.Thickness = 2 end
+                stk.Transparency = 0.3
             else
                 TweenService:Create(b, TweenInfo.new(0.15), { BackgroundColor3 = C.bg2 }):Play()
                 b.TextColor3 = C.text
+                local stk = b:FindFirstChildOfClass("UIStroke")
+                if stk then stk.Transparency = 1 end
             end
         end
     end
@@ -324,24 +402,36 @@ local ok, err = pcall(function()
         task.spawn(function()
             while scan1.Parent do
                 scan1.Position = UDim2.new(0, 10, 0, -2)
-                TweenService:Create(scan1, TweenInfo.new(3.5, Enum.EasingStyle.Linear), { Position = UDim2.new(0, 10, 1, 0) }):Play()
-                task.wait(7)
+                TweenService:Create(scan1, TweenInfo.new(5, Enum.EasingStyle.Linear), { Position = UDim2.new(0, 10, 1, 0) }):Play()
+                task.wait(10)
             end
         end)
     end
 
+    -- ============ CONFIG COM VALORES INTEIROS ============
     local cfg = {
         esp = true, team_check = false, wall_check = false,
-        esp_name = true, esp_dist = true, esp_lines = true, esp_body = false,
+        esp_name = true, esp_dist = true, esp_lines = false, esp_body = false,
         fullbright = false, no_fog = false,
         aimbot = false, mobile_aim = true, show_fov = true, rainbow_fov = false, prediction = true,
-        aim_jitter = false, 
+        aim_jitter = false,
         target_part = "Head", fov_radius = 150, smoothing = 4, fov_alpha = 15,
-        wall_pierce = false, wall_pierce_fov = 400, wp_show_fov = true, wp_debug = false,
+        aimbot_min_dist = 5, aimbot_max_dist = 400,
+        aimbot_priority = "Smart",
+        aimbot_angle_weight = 150,
+        wall_pierce = false, wall_pierce_fov = 400, wp_show_fov = false, wp_debug = false,
         enemies_only = true,
+        revenge_mark = true,
+        revenge_duration = 120,
+        revenge_radius = 200,
+        revenge_los_radius = 500,
+        revenge_max_suspects = 1,
         tp_aim = false, tp_auto = false, tp_cycle_rate = 2, tp_only_grounded = true,
-        tp_smooth = true, tp_smooth_time = 0.12, tp_max_dist = 500, 
-        auto_fire = false, fire_delay = 0.1,
+        tp_smooth = true,
+        tp_smooth_ms = 120,   -- milissegundos (antes era 0.12s)
+        tp_max_dist = 500,
+        auto_fire = false,
+        fire_delay_ms = 100,  -- milissegundos (antes era 0.1s)
         god = false,
         walkspeed = 16, jumppower = 50,
         noclip = false, infjump = false, fly = false, fly_speed = 50,
@@ -353,7 +443,6 @@ local ok, err = pcall(function()
 
     local esp_hl, esp_drawings, los_cache = {}, {}, {}
     local last_tp_t = 0
-    local last_tp_use = 0
     local tp_current_target = nil
     local tp_target_start = 0
     local last_safe_pos = Vector3.new(0, 50, 0)
@@ -367,6 +456,199 @@ local ok, err = pcall(function()
     local god_ff
     local last_fire_t = 0
     local orig = { Brightness = Lighting.Brightness, FogEnd = Lighting.FogEnd, FogStart = Lighting.FogStart }
+
+    -- ===== REVENGE =====
+    local event_log = {}
+    local function log_event(msg)
+        print("[LOKI] " .. msg)
+        table.insert(event_log, 1, { msg = msg, time = os.clock() })
+        if #event_log > 20 then table.remove(event_log) end
+    end
+
+    local killer_marks = {}
+    local damage_events = {}
+    local death_handled = true
+    local last_hp_seen = 100
+    local last_my_pos = Vector3.new(0, 50, 0)
+    local last_damage_clock = 0
+    local last_attacker = nil
+    local last_attacker_time = 0
+    local last_dmg_record = 0
+
+    local function clear_killer_marks()
+        killer_marks = {}
+        damage_events = {}
+        log_event("marcas limpas")
+    end
+
+    local function mark_killer(plr, reason)
+        if not plr or plr == LP then return end
+        if not cfg.revenge_mark then return end
+        if killer_marks[plr] and killer_marks[plr] > os.clock() + cfg.revenge_duration - 2 then return end
+        killer_marks[plr] = os.clock() + cfg.revenge_duration
+        log_event("KILLER: " .. plr.Name .. " (" .. tostring(reason) .. ")")
+    end
+
+    local function get_aiming_suspects(my_pos, max_dist)
+        local out = {}
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= LP and plr.Character then
+                local pHrp = plr.Character:FindFirstChild("HumanoidRootPart")
+                local pHead = plr.Character:FindFirstChild("Head")
+                local pHum = plr.Character:FindFirstChildOfClass("Humanoid")
+                if pHrp and pHum and pHum.Health > 0 then
+                    local d = (pHrp.Position - my_pos).Magnitude
+                    if d <= max_dist then
+                        local toMe = (my_pos - pHrp.Position).Unit
+                        local faceScore = 0
+                        if pHead then faceScore = math.max(faceScore, pHead.CFrame.LookVector:Dot(toMe)) end
+                        faceScore = math.max(faceScore, pHrp.CFrame.LookVector:Dot(toMe))
+                        if faceScore > 0.35 then
+                            table.insert(out, { plr = plr, dist = d, facing = faceScore })
+                        end
+                    end
+                end
+            end
+        end
+        return out
+    end
+
+    local function record_damage()
+        local now = os.clock()
+        if now - last_dmg_record < 0.5 then return end
+        last_dmg_record = now
+        local suspects = get_aiming_suspects(last_my_pos, 800)
+        for _, s in ipairs(suspects) do s.score = s.facing * 100 - s.dist / 10 end
+        table.sort(suspects, function(a, b) return a.score > b.score end)
+        table.insert(damage_events, 1, { time = now, suspects = suspects })
+        while #damage_events > 3 do table.remove(damage_events) end
+    end
+
+    local function show_killer_popup(names)
+        if #names == 0 then names = { "?" } end
+        local popup = Instance.new("TextLabel")
+        popup.Size = UDim2.new(0, 500, 0, 60)
+        popup.Position = UDim2.new(0.5, -250, 0.28, 0)
+        popup.BackgroundColor3 = C.killer; popup.BackgroundTransparency = 0.2
+        popup.TextColor3 = Color3.new(1, 1, 1); popup.Font = Enum.Font.GothamBlack
+        popup.TextSize = 20; popup.Text = "KILLED BY: " .. table.concat(names, ", ")
+        popup.ZIndex = 300; popup.Parent = gui
+        Instance.new("UICorner", popup).CornerRadius = UDim.new(0, 10)
+        local stk = Instance.new("UIStroke", popup)
+        stk.Color = Color3.new(1, 1, 1); stk.Thickness = 2; stk.Transparency = 0.3
+        TweenService:Create(popup, TweenInfo.new(3.5), { BackgroundTransparency = 1, TextTransparency = 1 }):Play()
+        TweenService:Create(stk, TweenInfo.new(3.5), { Transparency = 1 }):Play()
+        task.delay(3.7, function() if popup.Parent then popup:Destroy() end end)
+    end
+
+    local function handle_death(pos)
+        log_event(("MORRI em (%.0f, %.0f, %.0f)"):format(pos.X, pos.Y, pos.Z))
+        local now = os.clock()
+        local tally = {}
+        local eventos_recentes = 0
+        for _, ev in ipairs(damage_events) do
+            if now - ev.time < 8 then
+                eventos_recentes = eventos_recentes + 1
+                for i, s in ipairs(ev.suspects) do
+                    if i <= 3 then
+                        local weight = (4 - i) / 3
+                        tally[s.plr] = (tally[s.plr] or 0) + weight + (s.facing or 0) * 0.5
+                    end
+                end
+            end
+        end
+        log_event(("eventos de dano: %d"):format(eventos_recentes))
+        if last_attacker and (now - last_attacker_time) < 10
+           and last_attacker.Character
+           and last_attacker.Character:FindFirstChildOfClass("Humanoid")
+           and last_attacker.Character.Humanoid.Health > 0 then
+            tally[last_attacker] = (tally[last_attacker] or 0) + 5
+            log_event("último atacante vivo: " .. last_attacker.Name)
+        end
+        local ranked = {}
+        for plr, score in pairs(tally) do
+            local ch = plr.Character
+            local h = ch and ch:FindFirstChildOfClass("Humanoid")
+            if h and h.Health > 0 then table.insert(ranked, { plr = plr, score = score }) end
+        end
+        table.sort(ranked, function(a, b) return a.score > b.score end)
+        local marked_names = {}
+        local cap = math.max(1, math.min(3, tonumber(cfg.revenge_max_suspects) or 1))
+        for i = 1, math.min(cap, #ranked) do
+            local entry = ranked[i]
+            mark_killer(entry.plr, ("score_%.1f"):format(entry.score))
+            table.insert(marked_names, entry.plr.Name)
+        end
+        log_event(("marcados por score: %d"):format(#marked_names))
+        if #marked_names == 0 then
+            local nearest, nearest_d = nil, math.huge
+            for _, plr in ipairs(Players:GetPlayers()) do
+                if plr ~= LP and plr.Character then
+                    local pHrp = plr.Character:FindFirstChild("HumanoidRootPart")
+                    local pHum = plr.Character:FindFirstChildOfClass("Humanoid")
+                    if pHrp and pHum and pHum.Health > 0 then
+                        local d = (pHrp.Position - pos).Magnitude
+                        if d < nearest_d then nearest_d = d; nearest = plr end
+                    end
+                end
+            end
+            if nearest then
+                mark_killer(nearest, ("nearest_%.0f"):format(nearest_d))
+                table.insert(marked_names, nearest.Name)
+                log_event("FALLBACK: " .. nearest.Name)
+            end
+        end
+        damage_events = {}
+        if #marked_names > 0 then show_killer_popup(marked_names)
+        else log_event("nenhum suspeito válido") end
+    end
+
+    task.spawn(function()
+        while gui.Parent do
+            local char = LP.Character
+            if char then
+                local hrp = char:FindFirstChild("HumanoidRootPart")
+                if hrp then last_my_pos = hrp.Position end
+                local h = char:FindFirstChildOfClass("Humanoid")
+                if h then
+                    local hp = h.Health
+                    if death_handled then last_hp_seen = hp; death_handled = false end
+                    if hp < last_hp_seen - 0.5 and hp > 0 then
+                        last_damage_clock = os.clock()
+                        if cfg.revenge_mark then
+                            log_event(("dano: %.0f -> %.0f"):format(last_hp_seen, hp))
+                            record_damage()
+                            local de = damage_events[1]
+                            if de and de.suspects[1] then
+                                last_attacker = de.suspects[1].plr
+                                last_attacker_time = os.clock()
+                            end
+                        end
+                    end
+                    if hp <= 0 and not death_handled then
+                        death_handled = true
+                        handle_death(last_my_pos)
+                    end
+                    last_hp_seen = hp
+                end
+            else
+                if not death_handled and last_hp_seen > 0 then
+                    death_handled = true
+                    handle_death(last_my_pos)
+                end
+            end
+            task.wait(0.25)
+        end
+    end)
+
+    LP.CharacterAdded:Connect(function(char)
+        task.wait(0.3)
+        death_handled = true
+        last_damage_clock = 0
+        damage_events = {}
+        local h = char:FindFirstChildOfClass("Humanoid")
+        last_hp_seen = h and h.Health or 100
+    end)
 
     UIS.InputChanged:Connect(function(inp)
         if inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch then
@@ -430,6 +712,8 @@ local ok, err = pcall(function()
         btn.BorderSizePixel = 0; btn.Parent = parent
         Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
         local sc = Instance.new("UIScale", btn)
+        local hover_stroke = Instance.new("UIStroke", btn)
+        hover_stroke.Color = on_color_g; hover_stroke.Thickness = 1.5; hover_stroke.Transparency = 1
         local bar = Instance.new("Frame")
         bar.Size = UDim2.new(0, 3, 1, -10); bar.Position = UDim2.new(0, 0, 0, 5)
         bar.BackgroundColor3 = cfg[key] and on_color or C.off; bar.BorderSizePixel = 0; bar.Parent = btn
@@ -451,8 +735,14 @@ local ok, err = pcall(function()
         dot_stroke.Transparency = cfg[key] and 0.2 or 1
         local hit = Instance.new("TextButton")
         hit.Size = UDim2.new(1, 0, 1, 0); hit.BackgroundTransparency = 1; hit.Text = ""; hit.Parent = btn
-        hit.MouseEnter:Connect(function() TweenService:Create(btn, TweenInfo.new(0.15), { BackgroundColor3 = C.bg3 }):Play() end)
-        hit.MouseLeave:Connect(function() TweenService:Create(btn, TweenInfo.new(0.15), { BackgroundColor3 = cfg[key] and C.bg3 or C.bg2 }):Play() end)
+        hit.MouseEnter:Connect(function()
+            TweenService:Create(btn, TweenInfo.new(0.15), { BackgroundColor3 = C.bg3 }):Play()
+            TweenService:Create(hover_stroke, TweenInfo.new(0.2), { Transparency = 0.25 }):Play()
+        end)
+        hit.MouseLeave:Connect(function()
+            TweenService:Create(btn, TweenInfo.new(0.15), { BackgroundColor3 = cfg[key] and C.bg3 or C.bg2 }):Play()
+            TweenService:Create(hover_stroke, TweenInfo.new(0.2), { Transparency = 1 }):Play()
+        end)
         hit.MouseButton1Down:Connect(function() TweenService:Create(sc, TweenInfo.new(0.08), { Scale = 0.97 }):Play() end)
         hit.MouseButton1Up:Connect(function() TweenService:Create(sc, TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play() end)
         hit.MouseButton1Click:Connect(function()
@@ -473,13 +763,14 @@ local ok, err = pcall(function()
         end)
     end
 
+    -- SLIDER INTEIRO (sempre número inteiro, sem decimais)
     local function slider(name, min, max, key, parent, cb)
         local f = Instance.new("Frame")
         f.Size = UDim2.new(1, -10, 0, 44); f.BackgroundColor3 = C.bg2
         f.BorderSizePixel = 0; f.Parent = parent
         Instance.new("UICorner", f).CornerRadius = UDim.new(0, 6)
         local lbl = Instance.new("TextLabel")
-        lbl.Text = name .. ": " .. tostring(math.floor(cfg[key] * 100) / 100)
+        lbl.Text = name .. ": " .. tostring(math.floor(cfg[key] + 0.5))
         lbl.Size = UDim2.new(1, -20, 0, 16); lbl.Position = UDim2.new(0, 10, 0, 4)
         lbl.BackgroundTransparency = 1; lbl.TextColor3 = C.text
         lbl.Font = Enum.Font.Gotham; lbl.TextSize = 12
@@ -489,7 +780,7 @@ local ok, err = pcall(function()
         track.BackgroundColor3 = C.bg3; track.BorderSizePixel = 0; track.Parent = f
         Instance.new("UICorner", track).CornerRadius = UDim.new(1, 0)
         local fill = Instance.new("Frame")
-        fill.Size = UDim2.new((cfg[key] - min) / (max - min), 0, 1, 0)
+        fill.Size = UDim2.new((math.floor(cfg[key] + 0.5) - min) / (max - min), 0, 1, 0)
         fill.BackgroundColor3 = C.accent; fill.BorderSizePixel = 0; fill.Parent = track
         Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
         local knob = Instance.new("Frame")
@@ -503,9 +794,11 @@ local ok, err = pcall(function()
         local dragging = false
         local function set_val(px)
             local pos = math.clamp((px - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
-            local v = min + (max - min) * pos
-            v = math.floor(v * 100 + 0.5) / 100
-            cfg[key] = v; lbl.Text = name .. ": " .. tostring(v)
+            local v = math.floor(min + (max - min) * pos + 0.5) -- arredonda sempre
+            if v < min then v = min end
+            if v > max then v = max end
+            cfg[key] = v
+            lbl.Text = name .. ": " .. tostring(v)
             TweenService:Create(fill, TweenInfo.new(0.06), { Size = UDim2.new(pos, 0, 1, 0) }):Play()
             TweenService:Create(knob, TweenInfo.new(0.06), { Position = UDim2.new(pos, -6, 0.5, -6) }):Play()
             if cb then cb(v) end
@@ -565,25 +858,22 @@ local ok, err = pcall(function()
         if LP.Character then return LP.Character:FindFirstChildOfClass("Humanoid") end
         return nil
     end
-
     local function alive(plr)
         local ch = plr.Character
         if not ch then return false end
         local h = ch:FindFirstChildOfClass("Humanoid")
         return h and h.Health > 0 and ch:FindFirstChild("HumanoidRootPart")
     end
-
     local function is_enemy(plr)
         if plr == LP then return false end
         if not cfg.enemies_only then return true end
         if plr.Team and LP.Team and plr.Team == LP.Team then return false end
         return true
     end
-
     local function los_clear(plr, part)
         local now = os.clock()
         local c = los_cache[plr]
-        if c and now - c.t < 0.3 then return c.v end
+        if c and now - c.t < 0.5 then return c.v end
         local rp = RaycastParams.new()
         rp.FilterType = Enum.RaycastFilterType.Exclude; rp.IgnoreWater = true
         local filter = { Camera }
@@ -595,21 +885,23 @@ local ok, err = pcall(function()
         los_cache[plr] = { v = v, t = now }
         return v
     end
+    local function is_killer(plr)
+        local exp = killer_marks[plr]
+        if not exp then return false end
+        if os.clock() >= exp then killer_marks[plr] = nil; return false end
+        return true
+    end
 
-    -- ===== FIRE =====
-    local fire_target = nil
+    -- try_fire: usa fire_delay_ms / 1000
     local function try_fire()
         local now = os.clock()
-        local delay = math.max(cfg.fire_delay or 0.1, 0.06)
+        local delay = math.max((cfg.fire_delay_ms or 100) / 1000, 0.06)
         if now - last_fire_t < delay then return false end
         last_fire_t = now
-
-        local fired = false
         pcall(function()
             local vu = game:GetService("VirtualUser")
             vu:CaptureController()
             vu:ClickButton1(Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2))
-            fired = true
         end)
         pcall(function()
             local char = LP.Character
@@ -618,107 +910,8 @@ local ok, err = pcall(function()
                 if tool then tool:Activate() end
             end
         end)
-        return fired
+        return true
     end
-
-    -- Wall pierce
-    local hookfunction = rawget(getfenv and getfenv(0) or _G, "hookfunction") or hookfunction
-    local wp_hooks_installed = {}
-    local wp_target_getter = nil
-    local wp_ok = false
-
-    local function install_wall_pierce_hooks()
-        if not hookfunction then return false end
-        local char = LP.Character
-        if not char then return false end
-        local tool = char:FindFirstChildOfClass("Tool")
-        if not tool then return false end
-
-        for _, d in ipairs(tool:GetDescendants()) do
-            if d:IsA("RemoteEvent") and not wp_hooks_installed[d] then
-                wp_hooks_installed[d] = true
-                local old
-                local ok_h = pcall(function()
-                    old = hookfunction(d.FireServer, function(self, ...)
-                        if cfg.wall_pierce and wp_target_getter then
-                            local tgt = wp_target_getter()
-                            if tgt and tgt.Parent then
-                                local aim = tgt.Position
-                                local new_args = {}
-                                local replaced = false
-                                for i, a in ipairs({...}) do
-                                    if typeof(a) == "Vector3" then
-                                        new_args[i] = aim; replaced = true
-                                    elseif typeof(a) == "CFrame" then
-                                        new_args[i] = CFrame.new(a.Position, aim); replaced = true
-                                    elseif typeof(a) == "Ray" then
-                                        new_args[i] = Ray.new(a.Origin, (aim - a.Origin).Unit * 2000); replaced = true
-                                    else
-                                        new_args[i] = a
-                                    end
-                                end
-                                if replaced then return old(self, table.unpack(new_args)) end
-                            end
-                        end
-                        return old(self, ...)
-                    end)
-                end)
-                if ok_h then wp_ok = true end
-            end
-        end
-        return wp_ok
-    end
-    task.spawn(function()
-        while gui.Parent do
-            if cfg.wall_pierce then pcall(install_wall_pierce_hooks) end
-            task.wait(2)
-        end
-    end)
-
-    local mt_ok = false
-    local function install_metatable_hook()
-        if mt_ok then return end
-        if not getrawmetatable then return end
-        local ok_mt, mt = pcall(getrawmetatable, game)
-        if not ok_mt or not mt then return end
-        pcall(function() setreadonly(mt, false) end)
-        local old_nc = mt.__namecall
-        mt.__namecall = function(self, ...)
-            if checkcaller() then return old_nc(self, ...) end
-            local m = string.lower(getnamecallmethod() or "")
-            if (m == "raycast" or m == "findpartonraywithignorelist" or m == "findpartonray")
-               and cfg.wall_pierce and wp_target_getter then
-                local tgt = wp_target_getter()
-                if tgt and tgt.Parent then
-                    local args = { ... }
-                    if m == "raycast" and typeof(args[1]) == "Vector3" then
-                        args[2] = (tgt.Position - args[1]).Unit * 2000
-                        return old_nc(self, table.unpack(args))
-                    elseif typeof(args[1]) == "Ray" then
-                        args[1] = Ray.new(args[1].Origin, (tgt.Position - args[1].Origin).Unit * 2000)
-                        return old_nc(self, table.unpack(args))
-                    end
-                end
-            end
-            return old_nc(self, ...)
-        end
-        pcall(function() setreadonly(mt, true) end)
-        mt_ok = true
-    end
-    task.spawn(function()
-        while gui.Parent do
-            if cfg.wall_pierce and not mt_ok then pcall(install_metatable_hook) end
-            task.wait(3)
-        end
-    end)
-
-    local wp_fov_overlay = Instance.new("Frame")
-    wp_fov_overlay.AnchorPoint = Vector2.new(0.5, 0.5); wp_fov_overlay.Position = UDim2.new(0.5, 0, 0.5, 0)
-    wp_fov_overlay.Size = UDim2.new(0, 400, 0, 400); wp_fov_overlay.BackgroundTransparency = 1
-    wp_fov_overlay.BorderSizePixel = 0; wp_fov_overlay.Visible = false; wp_fov_overlay.Parent = gui
-    Instance.new("UICorner", wp_fov_overlay).CornerRadius = UDim.new(0.5, 0)
-    local wp_fov_stroke = Instance.new("UIStroke", wp_fov_overlay)
-    wp_fov_stroke.Thickness = 1.5; wp_fov_stroke.Color = C.purple; wp_fov_stroke.Transparency = 0.25
 
     local function find_wall_pierce_target()
         local center = Camera.ViewportSize / 2
@@ -738,9 +931,7 @@ local ok, err = pcall(function()
         end
         return best
     end
-    wp_target_getter = find_wall_pierce_target
 
-    -- ===== UI =====
     section("VISUAL", visual_frame)
     toggle("ESP (Highlight)", "esp", visual_frame)
     toggle("ESP Corpo Inteiro", "esp_body", visual_frame)
@@ -754,25 +945,89 @@ local ok, err = pcall(function()
         if on then Lighting.FogEnd = 100000; Lighting.FogStart = 100000 else Lighting.FogEnd = orig.FogEnd; Lighting.FogStart = orig.FogStart end
     end)
 
+    section("REVENGE MARK", visual_frame, C.killer)
+    toggle("Marcar quem me matou", "revenge_mark", visual_frame)
+    slider("Duração (s)", 10, 600, "revenge_duration", visual_frame)
+    slider("Raio de detecção", 50, 500, "revenge_radius", visual_frame)
+    slider("Raio LOS (sniper)", 100, 1000, "revenge_los_radius", visual_frame)
+    slider("Máx. marcados", 1, 3, "revenge_max_suspects", visual_frame)
+
+    local function test_mark_killer()
+        clear_killer_marks()
+        local enemies = {}
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= LP and plr.Character and plr.Character:FindFirstChildOfClass("Humanoid") then
+                table.insert(enemies, plr)
+            end
+        end
+        if #enemies > 0 then
+            local test = enemies[math.random(1, #enemies)]
+            mark_killer(test, "teste_manual")
+            log_event("TESTE: marcado " .. test.Name)
+            show_killer_popup({test.Name})
+        else log_event("TESTE: nenhum inimigo disponível") end
+    end
+
+    action_btn("Testar marca (inimigo aleatório)", test_mark_killer, visual_frame)
+    action_btn("Limpar marcas", function() clear_killer_marks() end, visual_frame)
+
+    local log_holder = Instance.new("Frame")
+    log_holder.Size = UDim2.new(1, -10, 0, 130)
+    log_holder.BackgroundColor3 = C.bg3
+    log_holder.BorderSizePixel = 0
+    log_holder.Parent = visual_frame
+    Instance.new("UICorner", log_holder).CornerRadius = UDim.new(0, 6)
+
+    local log_title = Instance.new("TextLabel")
+    log_title.Size = UDim2.new(1, -10, 0, 16); log_title.Position = UDim2.new(0, 6, 0, 3)
+    log_title.BackgroundTransparency = 1; log_title.Text = "REVENGE LOG (últimas 6)"
+    log_title.TextColor3 = C.killer; log_title.Font = Enum.Font.GothamBold
+    log_title.TextSize = 10; log_title.TextXAlignment = Enum.TextXAlignment.Left
+    log_title.Parent = log_holder
+
+    local log_labels = {}
+    for i = 1, 6 do
+        local lbl = Instance.new("TextLabel")
+        lbl.Size = UDim2.new(1, -10, 0, 16)
+        lbl.Position = UDim2.new(0, 6, 0, 20 + (i - 1) * 17)
+        lbl.BackgroundTransparency = 1; lbl.Text = ""; lbl.TextColor3 = C.text
+        lbl.Font = Enum.Font.Code; lbl.TextSize = 10
+        lbl.TextXAlignment = Enum.TextXAlignment.Left
+        lbl.TextTruncate = Enum.TextTruncate.AtEnd
+        lbl.Parent = log_holder
+        log_labels[i] = lbl
+    end
+
+    task.spawn(function()
+        while gui.Parent do
+            for i = 1, 6 do
+                local e = event_log[i]
+                if e then
+                    local age = os.clock() - e.time
+                    log_labels[i].Text = ("[%.0fs] %s"):format(age, e.msg)
+                    log_labels[i].TextColor3 = (age < 5) and C.accent_g or C.text
+                else log_labels[i].Text = "" end
+            end
+            task.wait(0.5)
+        end
+    end)
+
     section("CONFIGURAÇÃO DE TECLA", visual_frame)
     local key_frame = Instance.new("Frame")
     key_frame.Size = UDim2.new(1, -10, 0, 34); key_frame.BackgroundColor3 = C.bg2
     key_frame.BorderSizePixel = 0; key_frame.Parent = visual_frame
     Instance.new("UICorner", key_frame).CornerRadius = UDim.new(0, 6)
-    
     local key_lbl = Instance.new("TextLabel")
     key_lbl.Text = "Tecla Atual: " .. cfg.menu_key.Name
     key_lbl.Size = UDim2.new(1, -80, 1, 0); key_lbl.Position = UDim2.new(0, 10, 0, 0)
     key_lbl.BackgroundTransparency = 1; key_lbl.TextColor3 = C.text
     key_lbl.Font = Enum.Font.Gotham; key_lbl.TextSize = 12
     key_lbl.TextXAlignment = Enum.TextXAlignment.Left; key_lbl.Parent = key_frame
-    
     local key_btn = Instance.new("TextButton")
     key_btn.Size = UDim2.new(0, 64, 0, 24); key_btn.Position = UDim2.new(1, -74, 0.5, -12)
     key_btn.BackgroundColor3 = C.accent_d; key_btn.Text = "Mudar"; key_btn.TextColor3 = Color3.new(0, 0, 0)
     key_btn.Font = Enum.Font.GothamBold; key_btn.TextSize = 11; key_btn.BorderSizePixel = 0; key_btn.Parent = key_frame
     Instance.new("UICorner", key_btn).CornerRadius = UDim.new(0, 4)
-    
     key_btn.MouseButton1Click:Connect(function()
         cfg.waiting_key = true
         key_lbl.Text = "Aperte uma tecla..."
@@ -782,7 +1037,7 @@ local ok, err = pcall(function()
     section("ALVO", aim_frame)
     toggle("Só Inimigos", "enemies_only", aim_frame)
 
-    section("AIMBOT (CIRÚRGICO)", aim_frame)
+    section("AIMBOT", aim_frame)
     toggle("Aimbot (RMB / toque)", "aimbot", aim_frame)
     toggle("Touch Aim", "mobile_aim", aim_frame)
     toggle("Mostrar FOV", "show_fov", aim_frame)
@@ -792,10 +1047,17 @@ local ok, err = pcall(function()
     slider("Suavizacao", 1, 10, "smoothing", aim_frame)
     selector("Parte Alvo", {"Head", "HumanoidRootPart", "UpperTorso", "Torso"}, "target_part", aim_frame)
 
+    section("ALCANCE DO AIMBOT", aim_frame)
+    slider("Distância Max (studs)", 50, 2000, "aimbot_max_dist", aim_frame)
+    slider("Distância Min (studs)", 0, 100, "aimbot_min_dist", aim_frame)
+    selector("Prioridade", {"Smart", "Closest", "FOV"}, "aimbot_priority", aim_frame)
+
+    section("SMART MODE (peso)", aim_frame)
+    slider("Peso do centro", 0, 500, "aimbot_angle_weight", aim_frame)
+
     section("WALL PIERCE", aim_frame)
-    toggle("Wall Pierce (atira via parede)", "wall_pierce", aim_frame)
+    toggle("Wall Pierce (via câmera)", "wall_pierce", aim_frame)
     toggle("Mostrar WP FOV", "wp_show_fov", aim_frame)
-    toggle("WP Debug", "wp_debug", aim_frame)
     slider("WP FOV", 50, 800, "wall_pierce_fov", aim_frame)
 
     section("MOVIMENTO", move_frame)
@@ -819,7 +1081,6 @@ local ok, err = pcall(function()
             if fly_bv then fly_bv:Destroy(); fly_bv = nil end
             pcall(function() hrp.AssemblyLinearVelocity = Vector3.zero; hrp.AssemblyAngularVelocity = Vector3.zero end)
             pcall(function() h:ChangeState(Enum.HumanoidStateType.Freefall) end)
-            task.delay(0.1, function() if h and h.Parent then h.WalkSpeed = cfg.walkspeed; h.JumpPower = cfg.jumppower; h.UseJumpPower = true end end)
         end
     end
 
@@ -882,7 +1143,7 @@ local ok, err = pcall(function()
                     if h.JumpPower ~= cfg.jumppower then h.JumpPower = cfg.jumppower; h.UseJumpPower = true end
                 end
             end
-            task.wait(0.2)
+            task.wait(0.3)
         end
     end)
 
@@ -895,27 +1156,28 @@ local ok, err = pcall(function()
     end, move_frame)
     action_btn("Rejoin servidor", function() pcall(function() TS:Teleport(game.PlaceId, LP) end) end, move_frame)
 
-    section("TP AIM (Smooth)", risk_frame, C.danger)
+    section("TP AIM", risk_frame, C.danger)
     toggle("TP Manual (RMB -> cabeça)", "tp_aim", risk_frame, nil, true)
     toggle("TP Auto (ciclo sem RMB)", "tp_auto", risk_frame, nil, true)
     toggle("TP só se alvo no chão", "tp_only_grounded", risk_frame, nil, true)
     toggle("TP Suave (Anti-Ban)", "tp_smooth", risk_frame, nil, true)
-    slider("TP Tempo (s)", 0.05, 0.5, "tp_smooth_time", risk_frame)
+    slider("TP Tempo (ms)", 50, 500, "tp_smooth_ms", risk_frame)    -- inteiro em ms
     slider("TP Dist Max", 50, 800, "tp_max_dist", risk_frame)
-    slider("TP Cycle (s)", 0.5, 5, "tp_cycle_rate", risk_frame)
+    slider("TP Cycle (s)", 1, 5, "tp_cycle_rate", risk_frame)       -- 1-5 segundos inteiros
 
     section("FIRE / GOD", risk_frame, C.danger)
     toggle("Auto Fire (LMB segura)", "auto_fire", risk_frame, nil, true)
-    slider("Fire Delay (s)", 0.05, 0.5, "fire_delay", risk_frame)
+    slider("Fire Delay (ms)", 50, 500, "fire_delay_ms", risk_frame) -- inteiro em ms
     toggle("Godmode (teste)", "god", risk_frame, function(on) set_god(on) end, true)
 
-    -- ===== LOOPS =====
-    RunService.RenderStepped:Connect(function()
+    -- RenderStepped único
+    local esp_accum = 0
+    RunService.RenderStepped:Connect(function(dt)
         rmb_down = UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
         lmb_down = UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)
-    end)
 
-    RunService.RenderStepped:Connect(function()
+        if intro_active then fov_overlay.Visible = false; return end
+
         if cfg.show_fov and cfg.aimbot then
             fov_overlay.Visible = true
             fov_overlay.Size = UDim2.new(0, cfg.fov_radius * 2, 0, cfg.fov_radius * 2)
@@ -925,47 +1187,62 @@ local ok, err = pcall(function()
                 hue = (hue + 0.005) % 1; local col = Color3.fromHSV(hue, 1, 1); fov_stroke.Color = col; fov_glow.Color = col
             else fov_stroke.Color = C.accent; fov_glow.Color = C.accent end
         else fov_overlay.Visible = false end
-        if cfg.wp_show_fov and cfg.wall_pierce then
-            wp_fov_overlay.Visible = true
-            wp_fov_overlay.Size = UDim2.new(0, cfg.wall_pierce_fov * 2, 0, cfg.wall_pierce_fov * 2)
-        else wp_fov_overlay.Visible = false end
-    end)
 
-    -- ===== ESP LOOP OTIMIZADO (60Hz / Sem Atraso) =====
-    RunService.RenderStepped:Connect(function()
+        if cfg.fly then
+            if not fly_bv then set_fly(true) end
+            if fly_bv then
+                local h = hum()
+                if h then
+                    local dir = h.MoveDirection
+                    if dir.Magnitude < 0.05 then
+                        local kd = Vector3.zero
+                        if UIS:IsKeyDown(Enum.KeyCode.W) then kd = kd + Camera.CFrame.LookVector end
+                        if UIS:IsKeyDown(Enum.KeyCode.S) then kd = kd - Camera.CFrame.LookVector end
+                        if UIS:IsKeyDown(Enum.KeyCode.A) then kd = kd - Camera.CFrame.RightVector end
+                        if UIS:IsKeyDown(Enum.KeyCode.D) then kd = kd + Camera.CFrame.RightVector end
+                        if kd.Magnitude > 0 then dir = kd.Unit end
+                    end
+                    if UIS:IsKeyDown(Enum.KeyCode.Space) then dir = dir + Vector3.new(0, 1, 0) end
+                    if UIS:IsKeyDown(Enum.KeyCode.LeftShift) then dir = dir - Vector3.new(0, 1, 0) end
+                    fly_bv.Velocity = dir * cfg.fly_speed
+                    fly_bg.CFrame = Camera.CFrame
+                end
+            end
+        else
+            if fly_bv then set_fly(false) end
+        end
+
+        esp_accum = esp_accum + dt
+        if esp_accum < 0.05 then return end
+        esp_accum = 0
+
+        if not cfg.esp then return end
+
         local vp_size = Camera.ViewportSize
         local cam_pos = Camera.CFrame.Position
-        
-        for _, plr in ipairs(Players:GetPlayers()) do
+        local players = Players:GetPlayers()
+
+        for _, plr in ipairs(players) do
             if plr ~= LP then
                 local ch = plr.Character
                 local head = ch and ch:FindFirstChild("Head")
-                local hum = ch and ch:FindFirstChildOfClass("Humanoid")
-                
-                local show = cfg.esp and head and hum and hum.Health > 0
-                
-                if show and cfg.team_check and plr.Team and LP.Team and plr.Team == LP.Team then
-                    show = false
-                end
-                
+                local hum2 = ch and ch:FindFirstChildOfClass("Humanoid")
+                local show = head and hum2 and hum2.Health > 0
+                if show and cfg.team_check and plr.Team and LP.Team and plr.Team == LP.Team then show = false end
                 local dist = 0
                 if show and head then
                     dist = (cam_pos - head.Position).Magnitude
-                    if dist > 1500 then show = false end 
+                    if dist > 1500 then show = false end
                 end
-
                 if not show then
                     if esp_drawings[plr] then
                         esp_drawings[plr].line.Visible = false
                         esp_drawings[plr].name.Visible = false
                         esp_drawings[plr].dist.Visible = false
                     end
-                    if esp_hl[plr] then
-                        esp_hl[plr].Enabled = false
-                    end
+                    if esp_hl[plr] then esp_hl[plr].Enabled = false end
                 else
                     local sp, on = Camera:WorldToViewportPoint(head.Position)
-                    
                     if on and sp.Z > 0 then
                         local hl = esp_hl[plr]
                         if not hl or hl.Adornee ~= ch then
@@ -978,60 +1255,47 @@ local ok, err = pcall(function()
                             esp_hl[plr] = hl
                         end
                         hl.Enabled = true
-                        
-                        local col = (plr.Team and LP.Team and plr.Team == LP.Team) and C.accent or C.esp_green
-                        if hl.FillColor ~= col then
-                            hl.FillColor = col
-                            hl.OutlineColor = col
-                        end
-                        
-                        if cfg.esp_body then 
-                            if hl.FillTransparency ~= 0.5 then hl.FillTransparency = 0.5 end
-                        else 
-                            if hl.FillTransparency ~= 1 then hl.FillTransparency = 1 end
-                        end
+                        local is_k = is_killer(plr)
+                        local col
+                        if is_k then col = C.killer
+                        elseif plr.Team and LP.Team and plr.Team == LP.Team then col = C.accent
+                        else col = C.esp_green end
+                        if hl.FillColor ~= col then hl.FillColor = col; hl.OutlineColor = col end
+                        local targetFill = cfg.esp_body and 0.5 or 1
+                        if hl.FillTransparency ~= targetFill then hl.FillTransparency = targetFill end
                         if hl.OutlineTransparency ~= 0 then hl.OutlineTransparency = 0 end
-                        
                         if Drawing then
                             local d = esp_drawings[plr]
                             if not d then
-                                d = {
-                                    line = Drawing.new("Line"),
-                                    name = Drawing.new("Text"),
-                                    dist = Drawing.new("Text")
-                                }
+                                d = { line = Drawing.new("Line"), name = Drawing.new("Text"), dist = Drawing.new("Text") }
                                 d.name.Center = true; d.name.Outline = true; d.name.Size = 14; d.name.Font = 2
                                 d.dist.Center = true; d.dist.Outline = true; d.dist.Size = 12; d.dist.Font = 2
                                 esp_drawings[plr] = d
                             end
-                            
                             if cfg.esp_lines then
                                 d.line.Visible = true
                                 d.line.From = Vector2.new(vp_size.X / 2, vp_size.Y)
                                 d.line.To = Vector2.new(sp.X, sp.Y)
                                 d.line.Color = col
-                                d.line.Thickness = 1
-                            else
-                                d.line.Visible = false
-                            end
-                            
+                                d.line.Thickness = is_k and 2 or 1
+                            else d.line.Visible = false end
                             if cfg.esp_name then
                                 d.name.Visible = true
-                                d.name.Text = plr.Name
+                                d.name.Text = is_k and ("KILLER " .. plr.Name) or plr.Name
                                 d.name.Position = Vector2.new(sp.X, sp.Y - 20)
                                 d.name.Color = col
-                            else
-                                d.name.Visible = false
-                            end
-                            
+                                d.name.Size = is_k and 16 or 14
+                            else d.name.Visible = false end
                             if cfg.esp_dist then
                                 d.dist.Visible = true
-                                d.dist.Text = math.floor(dist) .. "m"
+                                if is_k then
+                                    local remaining = math.floor((killer_marks[plr] or 0) - os.clock())
+                                    if remaining < 0 then remaining = 0 end
+                                    d.dist.Text = math.floor(dist) .. "m · " .. remaining .. "s"
+                                else d.dist.Text = math.floor(dist) .. "m" end
                                 d.dist.Position = Vector2.new(sp.X, sp.Y + 15)
                                 d.dist.Color = col
-                            else
-                                d.dist.Visible = false
-                            end
+                            else d.dist.Visible = false end
                         end
                     else
                         if esp_drawings[plr] then
@@ -1046,24 +1310,36 @@ local ok, err = pcall(function()
         end
     end)
 
-    -- Aimbot Target
     local function get_target()
         local center = Camera.ViewportSize / 2
         local cam_pos = Camera.CFrame.Position
         local cam_look = Camera.CFrame.LookVector
-        local best, best_d, best_plr = nil, cfg.fov_radius, nil
+        local my_char = LP.Character
+        local my_pos = my_char and my_char:FindFirstChild("HumanoidRootPart") and my_char.HumanoidRootPart.Position
+        if not my_pos then return nil end
+        local best, best_score, best_plr = nil, math.huge, nil
         for _, plr in ipairs(Players:GetPlayers()) do
             if is_enemy(plr) and alive(plr) then
                 local ch = plr.Character
                 local part = ch:FindFirstChild(cfg.target_part) or ch:FindFirstChild("Head")
                 if part and part:IsA("BasePart") then
-                    local dir = (part.Position - cam_pos).Unit
-                    if cam_look:Dot(dir) > 0.5 then
-                        local sp, on = Camera:WorldToViewportPoint(part.Position)
-                        if on and sp.Z > 0 then
-                            local d = (Vector2.new(sp.X, sp.Y) - center).Magnitude
-                            if d < best_d and (not cfg.wall_check or los_clear(plr, part)) then
-                                best_d = d; best = part; best_plr = plr
+                    local dist3d = (part.Position - my_pos).Magnitude
+                    if dist3d >= cfg.aimbot_min_dist and dist3d <= cfg.aimbot_max_dist then
+                        local dir = (part.Position - cam_pos).Unit
+                        if cam_look:Dot(dir) > 0.4 then
+                            local sp, on = Camera:WorldToViewportPoint(part.Position)
+                            if on and sp.Z > 0 then
+                                local fov_dist = (Vector2.new(sp.X, sp.Y) - center).Magnitude
+                                if fov_dist < cfg.fov_radius and (not cfg.wall_check or los_clear(plr, part)) then
+                                    local score
+                                    if cfg.aimbot_priority == "Closest" then score = dist3d
+                                    elseif cfg.aimbot_priority == "FOV" then score = fov_dist
+                                    else
+                                        local fov_norm = fov_dist / math.max(cfg.fov_radius, 1)
+                                        score = dist3d + fov_norm * cfg.aimbot_angle_weight
+                                    end
+                                    if score < best_score then best_score = score; best = part; best_plr = plr end
+                                end
                             end
                         end
                     end
@@ -1106,30 +1382,28 @@ local ok, err = pcall(function()
             if tgt_hum.FloorMaterial == Enum.Material.Air then return false end
             if tgt_hrp.AssemblyLinearVelocity.Y < -50 then return false end
         end
-
         local my_char = LP.Character
         if not my_char then return false end
         local my_hrp = my_char:FindFirstChild("HumanoidRootPart")
         local my_hum = my_char:FindFirstChildOfClass("Humanoid")
         if not my_hrp or not my_hum then return false end
-
         if my_hum.FloorMaterial ~= Enum.Material.Air and my_hrp.Position.Y > -50 then
             last_safe_pos = my_hrp.Position
         end
         local dy = tgt_head.Position.Y - my_hrp.Position.Y
         if dy < -80 then return false end
-
         local now = os.clock()
         if now - last_tp_t > 0.15 then
-            last_tp_t = now; last_tp_use = now
+            last_tp_t = now
             local dest = CFrame.new(tgt_head.Position + Vector3.new(0, 3.5, 0))
-            
             if cfg.tp_smooth then
                 if not tp_running then
                     tp_running = true
                     task.spawn(function()
                         local start_cf = my_hrp.CFrame
-                        local steps = math.floor(cfg.tp_smooth_time / 0.03)
+                        -- tp_smooth_ms em ms → converter para segundos
+                        local duration = (cfg.tp_smooth_ms or 120) / 1000
+                        local steps = math.floor(duration / 0.03)
                         if steps < 2 then steps = 2 end
                         for i = 1, steps do
                             if not my_hrp.Parent or not my_char.Parent then break end
@@ -1151,10 +1425,9 @@ local ok, err = pcall(function()
         return true
     end
 
-    -- ===== AIMBOT SURGICAL =====
     RunService:BindToRenderStep("LOKI_AIM", Enum.RenderPriority.Camera.Value + 1, function(dt)
+        if intro_active then return end
         local trigger = rmb_down or (cfg.mobile_aim and touch_active)
-
         if cfg.tp_auto then
             local now = os.clock()
             if not tp_current_target or not alive(tp_current_target) or (now - tp_target_start > cfg.tp_cycle_rate) then
@@ -1162,42 +1435,32 @@ local ok, err = pcall(function()
             end
             if tp_current_target and do_tp_aim(tp_current_target) then return end
         end
-
         if cfg.tp_aim and trigger then
             local tplr = get_nearest_enemy()
             if tplr and do_tp_aim(tplr) then return end
         end
-
         if not (cfg.aimbot and trigger) then return end
-
         local target = get_target()
         if not target then return end
-
         local tpos = target.CFrame.Position
-        
         if cfg.prediction then
             local vel = target.AssemblyLinearVelocity
             if vel.Magnitude > 0.5 then
                 local dist = (tpos - Camera.CFrame.Position).Magnitude
-                local travel_time = dist / 2000 
-                tpos = tpos + vel * travel_time 
+                local travel_time = dist / 2000
+                tpos = tpos + vel * travel_time
             end
         end
-        
         if cfg.aim_jitter then 
             tpos = tpos + Vector3.new((math.random() - 0.5) * 0.05, (math.random() - 0.5) * 0.05, (math.random() - 0.5) * 0.05) 
         end
-
         local alpha = math.clamp((dt * 60) / math.max(cfg.smoothing, 1), 0.05, 1)
-        
         if mousemoverel then
             local sp, on = Camera:WorldToViewportPoint(tpos)
             if on and sp.Z > 0 then
                 local center = Camera.ViewportSize / 2
                 local delta = Vector2.new(sp.X, sp.Y) - center
-                if delta.Magnitude > 0.5 then 
-                    pcall(mousemoverel, delta.X * alpha, delta.Y * alpha) 
-                end
+                if delta.Magnitude > 0.5 then pcall(mousemoverel, delta.X * alpha, delta.Y * alpha) end
             end
         else
             local cam_pos = Camera.CFrame.Position
@@ -1209,30 +1472,11 @@ local ok, err = pcall(function()
     end)
 
     RunService.Heartbeat:Connect(function()
-        if cfg.wall_pierce then fire_target = find_wall_pierce_target() else fire_target = nil end
+        if intro_active then return end
         if not cfg.auto_fire then return end
         local trigger = lmb_down or touch_active
         if not trigger then return end
         try_fire()
-    end)
-
-    RunService.RenderStepped:Connect(function()
-        if not cfg.fly then if fly_bv then set_fly(false) end return end
-        if not fly_bv then set_fly(true); return end
-        local h = hum(); if not h then return end
-        local dir = h.MoveDirection
-        if dir.Magnitude < 0.05 then
-            local kd = Vector3.zero
-            if UIS:IsKeyDown(Enum.KeyCode.W) then kd = kd + Camera.CFrame.LookVector end
-            if UIS:IsKeyDown(Enum.KeyCode.S) then kd = kd - Camera.CFrame.LookVector end
-            if UIS:IsKeyDown(Enum.KeyCode.A) then kd = kd - Camera.CFrame.RightVector end
-            if UIS:IsKeyDown(Enum.KeyCode.D) then kd = kd + Camera.CFrame.RightVector end
-            if kd.Magnitude > 0 then dir = kd.Unit end
-        end
-        if UIS:IsKeyDown(Enum.KeyCode.Space) then dir = dir + Vector3.new(0, 1, 0) end
-        if UIS:IsKeyDown(Enum.KeyCode.LeftShift) then dir = dir - Vector3.new(0, 1, 0) end
-        fly_bv.Velocity = dir * cfg.fly_speed
-        fly_bg.CFrame = Camera.CFrame
     end)
 
     LP.Idled:Connect(function()
@@ -1244,22 +1488,34 @@ local ok, err = pcall(function()
         end
     end)
 
-    local function tween_size(target_size, bg, time, style)
-        local t = TweenService:Create(main, TweenInfo.new(time, style or Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = target_size, BackgroundTransparency = bg })
-        t:Play(); return t
-    end
     local function open_menu()
         cfg.menu_state = "open"; main.Visible = true
-        if main.Size == UDim2.new(0, 0, 0, 0) then main.BackgroundTransparency = 1; tween_size(UDim2.new(0, MAIN_W, 0, MAIN_H), 0.05, 0.45, Enum.EasingStyle.Back)
-        else tween_size(UDim2.new(0, MAIN_W, 0, MAIN_H), 0.05, 0.35, Enum.EasingStyle.Back) end
+        if main.Size == UDim2.new(0, 0, 0, 0) then
+            main.BackgroundTransparency = 1; main.Size = UDim2.new(0, 0, 0, 0)
+            TweenService:Create(main, TweenInfo.new(0.55, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                Size = UDim2.new(0, MAIN_W, 0, MAIN_H), BackgroundTransparency = 0.05
+            }):Play()
+            flash(main, C.accent)
+        else
+            TweenService:Create(main, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                Size = UDim2.new(0, MAIN_W, 0, MAIN_H), BackgroundTransparency = 0.05
+            }):Play()
+        end
     end
     local function minimize_menu()
         cfg.menu_state = "minimized"
-        tween_size(UDim2.new(0, MAIN_W, 0, TITLE_H), 0.05, 0.3)
+        TweenService:Create(main, TweenInfo.new(0.35, Enum.EasingStyle.Quad), {
+            Size = UDim2.new(0, MAIN_W, 0, TITLE_H), BackgroundTransparency = 0.05
+        }):Play()
+        spawn_dust(main, MAIN_W / 2, TITLE_H, C.accent, 8)
     end
     local function close_menu()
         cfg.menu_state = "closed"
-        local t = tween_size(UDim2.new(0, 0, 0, 0), 1, 0.22)
+        spawn_dust(main, MAIN_W / 2, MAIN_H / 2, C.accent, 15)
+        local t = TweenService:Create(main, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+            Size = UDim2.new(0, 0, 0, 0), BackgroundTransparency = 1
+        })
+        t:Play()
         t.Completed:Connect(function() if cfg.menu_state == "closed" then main.Visible = false end end)
     end
     min_btn.MouseButton1Click:Connect(function() if cfg.menu_state == "open" then minimize_menu() else open_menu() end end)
@@ -1273,7 +1529,6 @@ local ok, err = pcall(function()
             cfg.waiting_key = false
             return
         end
-        
         if input.KeyCode == cfg.menu_key then
             if cfg.menu_state == "open" then minimize_menu() else open_menu() end
         end
@@ -1288,17 +1543,38 @@ local ok, err = pcall(function()
             esp_drawings[plr] = nil 
         end
         los_cache[plr] = nil
+        killer_marks[plr] = nil
     end)
 
-    -- ===== INTRO =====
+    -- INTRO
     local intro = Instance.new("Frame")
     intro.Size = UDim2.new(1, 0, 1, 0); intro.BackgroundColor3 = Color3.new(0, 0, 0)
     intro.BackgroundTransparency = 0; intro.BorderSizePixel = 0; intro.ZIndex = 200; intro.Parent = gui
 
+    local intro_grid = Instance.new("Frame")
+    intro_grid.Size = UDim2.new(1, 0, 1, 0); intro_grid.BackgroundTransparency = 1
+    intro_grid.ZIndex = 200; intro_grid.Parent = intro
+    for i = 0, 24 do
+        local h = Instance.new("Frame")
+        h.Size = UDim2.new(1, 0, 0, 1); h.Position = UDim2.new(0, 0, i / 24, 0)
+        h.BackgroundColor3 = C.accent; h.BackgroundTransparency = 1
+        h.BorderSizePixel = 0; h.ZIndex = 200; h.Parent = intro_grid
+        local v = Instance.new("Frame")
+        v.Size = UDim2.new(0, 1, 1, 0); v.Position = UDim2.new(i / 24, 0, 0, 0)
+        v.BackgroundColor3 = C.accent; v.BackgroundTransparency = 1
+        v.BorderSizePixel = 0; v.ZIndex = 200; v.Parent = intro_grid
+        task.delay(i * 0.02, function()
+            if h.Parent then
+                TweenService:Create(h, TweenInfo.new(0.5), { BackgroundTransparency = 0.93 }):Play()
+                TweenService:Create(v, TweenInfo.new(0.5), { BackgroundTransparency = 0.93 }):Play()
+            end
+        end)
+    end
+
     local intro_tree = Instance.new("Frame")
-    intro_tree.Size = UDim2.new(0, 400, 0, 400)
-    intro_tree.AnchorPoint = Vector2.new(0.5, 0.5); intro_tree.Position = UDim2.new(0.5, 0, 0.5, 0)
-    intro_tree.BackgroundTransparency = 1; intro_tree.ZIndex = 201; intro_tree.Parent = intro
+    intro_tree.Size = UDim2.new(0, 500, 0, 500); intro_tree.AnchorPoint = Vector2.new(0.5, 0.5)
+    intro_tree.Position = UDim2.new(0.5, 0, 0.5, 0); intro_tree.BackgroundTransparency = 1
+    intro_tree.ZIndex = 201; intro_tree.Parent = intro
 
     local intro_segs = {}
     local function intro_branch(start, dir, len, depth)
@@ -1311,93 +1587,119 @@ local ok, err = pcall(function()
         f.Rotation = math.deg(math.atan2(d.Y, d.X))
         f.BackgroundColor3 = (depth % 2 == 0) and C.accent or C.purple
         f.BorderSizePixel = 0; f.ZIndex = 201; f.Parent = intro_tree
-        table.insert(intro_segs, {frame = f, target_w = d.Magnitude})
+        table.insert(intro_segs, { frame = f, target_w = d.Magnitude })
         if depth > 0 then
             intro_branch(finish, rot2d(dir, 0.4 + math.random() * 0.1), len * 0.72, depth - 1)
             intro_branch(finish, rot2d(dir, -0.42 - math.random() * 0.1), len * 0.72, depth - 1)
         end
     end
-    intro_branch(Vector2.new(200, 200), Vector2.new(0, -1), 22, 5)
-    intro_branch(Vector2.new(200, 200), Vector2.new(0, 1), 16, 5)
-    intro_branch(Vector2.new(200, 200), Vector2.new(-1, 0.2), 16, 4)
-    intro_branch(Vector2.new(200, 200), Vector2.new(1, -0.2), 16, 4)
+    intro_branch(Vector2.new(250, 250), Vector2.new(0, -1), 22, 5)
+    intro_branch(Vector2.new(250, 250), Vector2.new(0, 1), 16, 5)
+    intro_branch(Vector2.new(250, 250), Vector2.new(-1, 0.2), 16, 4)
+    intro_branch(Vector2.new(250, 250), Vector2.new(1, -0.2), 16, 4)
 
-    local intro_title = Instance.new("TextLabel")
-    intro_title.Text = "LOKI"; intro_title.Size = UDim2.new(1, 0, 0, 100)
-    intro_title.Position = UDim2.new(0, 0, 0.5, -70); intro_title.BackgroundTransparency = 1
-    intro_title.TextColor3 = Color3.fromRGB(130, 255, 175); intro_title.Font = Enum.Font.GothamBlack
-    intro_title.TextSize = 90; intro_title.TextTransparency = 1; intro_title.ZIndex = 205; intro_title.Parent = intro
-    local intro_stroke = Instance.new("UIStroke", intro_title)
-    intro_stroke.Color = Color3.fromRGB(0, 255, 110); intro_stroke.Thickness = 4; intro_stroke.Transparency = 1
+    local letters = {}
+    local word = {"L", "O", "K", "I"}
+    local letter_spacing = 100
+    local start_x_letters = -(#word - 1) * letter_spacing / 2
+    for i, ch in ipairs(word) do
+        local ml = Instance.new("TextLabel")
+        ml.Text = ch; ml.Size = UDim2.new(0, 100, 0, 120)
+        ml.Position = UDim2.new(0.5, start_x_letters + (i - 1) * letter_spacing - 50, 0.5, -70 - 350)
+        ml.BackgroundTransparency = 1; ml.TextColor3 = Color3.fromRGB(130, 255, 175)
+        ml.Font = Enum.Font.GothamBlack; ml.TextSize = 100
+        ml.TextTransparency = 1; ml.ZIndex = 205; ml.Parent = intro
+        local stk = Instance.new("UIStroke", ml)
+        stk.Color = C.accent; stk.Thickness = 4; stk.Transparency = 1
+
+        local red = ml:Clone()
+        red.TextColor3 = Color3.fromRGB(255, 40, 60)
+        red.Position = ml.Position + UDim2.new(0, -8, 0, 0)
+        red.ZIndex = 204
+        if red:FindFirstChildOfClass("UIStroke") then red:FindFirstChildOfClass("UIStroke"):Destroy() end
+        red.Parent = intro
+
+        local blue = ml:Clone()
+        blue.TextColor3 = Color3.fromRGB(40, 100, 255)
+        blue.Position = ml.Position + UDim2.new(0, 8, 0, 0)
+        blue.ZIndex = 204
+        if blue:FindFirstChildOfClass("UIStroke") then blue:FindFirstChildOfClass("UIStroke"):Destroy() end
+        blue.Parent = intro
+
+        letters[i] = {
+            main = ml, red = red, blue = blue, stroke = stk,
+            target = UDim2.new(0.5, start_x_letters + (i - 1) * letter_spacing - 50, 0.5, -70)
+        }
+    end
 
     local intro_ver = Instance.new("TextLabel")
     intro_ver.Text = LOKI_VERSION; intro_ver.Size = UDim2.new(1, 0, 0, 20)
-    intro_ver.Position = UDim2.new(0, 0, 0.5, 55); intro_ver.BackgroundTransparency = 1
+    intro_ver.Position = UDim2.new(0, 0, 0.5, 70); intro_ver.BackgroundTransparency = 1
     intro_ver.TextColor3 = C.accent_g; intro_ver.Font = Enum.Font.GothamBold
     intro_ver.TextSize = 16; intro_ver.TextTransparency = 1
     intro_ver.ZIndex = 205; intro_ver.Parent = intro
 
-    local intro_title_r = intro_title:Clone()
-    intro_title_r.TextColor3 = Color3.fromRGB(255, 40, 60)
-    intro_title_r.Position = UDim2.new(0, -6, 0.5, -70); intro_title_r.ZIndex = 204; intro_title_r.Parent = intro
-    if intro_title_r:FindFirstChildOfClass("UIStroke") then intro_title_r:FindFirstChildOfClass("UIStroke"):Destroy() end
-    local intro_title_b = intro_title:Clone()
-    intro_title_b.TextColor3 = Color3.fromRGB(40, 100, 255)
-    intro_title_b.Position = UDim2.new(0, 6, 0.5, -70); intro_title_b.ZIndex = 204; intro_title_b.Parent = intro
-    if intro_title_b:FindFirstChildOfClass("UIStroke") then intro_title_b:FindFirstChildOfClass("UIStroke"):Destroy() end
-
-    local function intro_glitch(frames, mag, dur)
-        local origs = {}
-        for i, f in ipairs(frames) do origs[i] = f.Position end
+    local function shake_intro(duration, intensity)
         task.spawn(function()
             local t0 = os.clock()
-            while os.clock() - t0 < dur do
-                local ox = (math.random() - 0.5) * mag
-                local oy = (math.random() - 0.5) * mag
-                for i, f in ipairs(frames) do f.Position = origs[i] + UDim2.fromOffset(ox, oy) end
-                task.wait(0.018)
+            while os.clock() - t0 < duration and intro.Parent do
+                intro.Position = UDim2.fromOffset(
+                    (math.random() - 0.5) * intensity,
+                    (math.random() - 0.5) * intensity
+                )
+                RunService.RenderStepped:Wait()
             end
-            for i, f in ipairs(frames) do f.Position = origs[i] end
+            if intro.Parent then intro.Position = UDim2.fromOffset(0, 0) end
         end)
     end
 
     task.spawn(function()
-        play_sfx("intro_start", 1.0, 0.85); play_sfx("intro_whoosh", 0.5, 0.75)
+        play_sfx("intro_start", 1.0, 0.85)
         task.wait(0.15)
         local scr = gui.AbsoluteSize
+        local cx0, cy0 = scr.X / 2, scr.Y / 2
 
-        for _ = 1, 150 do
+        for _ = 1, 100 do
             local d = Instance.new("Frame")
-            d.Position = UDim2.fromOffset(math.random() * scr.X, -50)
-            d.Size = UDim2.new(0, 2, 0, math.random(20, 80))
+            d.Position = UDim2.fromOffset(math.random() * scr.X, -100)
+            d.Size = UDim2.new(0, 2, 0, math.random(20, 100))
             d.BackgroundColor3 = (math.random() > 0.5) and C.accent or C.purple
             d.BackgroundTransparency = math.random(20, 80) / 100
             d.BorderSizePixel = 0; d.ZIndex = 202; d.Parent = intro
-            local t = TweenService:Create(d, TweenInfo.new(0.5 + math.random() * 0.8, Enum.EasingStyle.Linear), { Position = UDim2.fromOffset(d.Position.X.Offset, scr.Y + 50), BackgroundTransparency = 1 })
+            local t = TweenService:Create(d, TweenInfo.new(0.4 + math.random() * 1.0, Enum.EasingStyle.Linear), {
+                Position = UDim2.fromOffset(d.Position.X.Offset, scr.Y + 100),
+                BackgroundTransparency = 1
+            })
             t:Play(); t.Completed:Connect(function() d:Destroy() end)
         end
 
-        for _ = 1, 80 do
-            local ang = math.random() * math.pi * 2; local dist = 200 + math.random() * 400
-            local start_x = (scr.X / 2) + math.cos(ang) * dist; local start_y = (scr.Y / 2) + math.sin(ang) * dist
+        for _ = 1, 60 do
+            local ang = math.random() * math.pi * 2
+            local dist = 200 + math.random() * 500
+            local sx = cx0 + math.cos(ang) * dist
+            local sy = cy0 + math.sin(ang) * dist
             local p = Instance.new("Frame")
-            p.Position = UDim2.fromOffset(start_x, start_y); p.Size = UDim2.new(0, 4, 0, 4); p.BackgroundColor3 = C.accent_g
-            p.BorderSizePixel = 0; p.ZIndex = 203; p.Parent = intro
+            p.Position = UDim2.fromOffset(sx, sy); p.Size = UDim2.new(0, 4, 0, 4)
+            p.BackgroundColor3 = C.accent_g; p.BorderSizePixel = 0
+            p.ZIndex = 203; p.Parent = intro
             Instance.new("UICorner", p).CornerRadius = UDim.new(1, 0)
-            local t = TweenService:Create(p, TweenInfo.new(0.6 + math.random() * 0.4, Enum.EasingStyle.Back, Enum.EasingDirection.In), { Position = UDim2.fromOffset(scr.X / 2, scr.Y / 2), Size = UDim2.new(0, 1, 0, 1), BackgroundTransparency = 1 })
+            local t = TweenService:Create(p, TweenInfo.new(0.5 + math.random() * 0.5, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+                Position = UDim2.fromOffset(cx0, cy0), Size = UDim2.new(0, 1, 0, 1),
+                BackgroundTransparency = 1
+            })
             t:Play(); t.Completed:Connect(function() p:Destroy() end)
         end
-        task.wait(0.35)
 
+        task.wait(0.35)
         play_sfx("intro_thunder", 0.9, 0.9)
-        local cx0, cy0 = scr.X / 2, scr.Y / 2
-        for _ = 1, 20 do
+        shake_intro(0.3, 6)
+        for _ = 1, 15 do
             local col = (math.random() > 0.5) and C.accent or C.purple
-            spawn_bolt(intro, cx0 + (math.random() - 0.5) * 400, cy0 + (math.random() - 0.5) * 400, col, 3)
-            task.wait(0.04)
+            spawn_bolt(intro, cx0 + (math.random() - 0.5) * 500, cy0 + (math.random() - 0.5) * 500, col, 3)
+            task.wait(0.03)
         end
 
-        for i = 1, 8 do
+        for i = 1, 6 do
             task.delay(i * 0.1, function()
                 local ring = Instance.new("Frame")
                 ring.AnchorPoint = Vector2.new(0.5, 0.5); ring.Position = UDim2.new(0.5, 0, 0.5, 0)
@@ -1405,8 +1707,9 @@ local ok, err = pcall(function()
                 ring.BorderSizePixel = 0; ring.ZIndex = 203; ring.Parent = intro
                 Instance.new("UICorner", ring).CornerRadius = UDim.new(1, 0)
                 local stk = Instance.new("UIStroke", ring)
-                stk.Color = (i % 2 == 0) and C.accent or C.purple; stk.Thickness = 4; stk.Transparency = 0.1
-                TweenService:Create(ring, TweenInfo.new(1.5, Enum.EasingStyle.Quad), { Size = UDim2.new(0, 900, 0, 900) }):Play()
+                stk.Color = (i % 2 == 0) and C.accent or C.purple
+                stk.Thickness = 4; stk.Transparency = 0.1
+                TweenService:Create(ring, TweenInfo.new(1.5, Enum.EasingStyle.Quad), { Size = UDim2.new(0, 1000, 0, 1000) }):Play()
                 TweenService:Create(stk, TweenInfo.new(1.5, Enum.EasingStyle.Quad), { Transparency = 1, Thickness = 0.1 }):Play()
                 task.delay(1.6, function() if ring.Parent then ring:Destroy() end end)
             end)
@@ -1415,53 +1718,85 @@ local ok, err = pcall(function()
         for i, s in ipairs(intro_segs) do
             task.delay(i * 0.01, function()
                 if s.frame.Parent then
-                    TweenService:Create(s.frame, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Size = UDim2.new(0, s.target_w, 0, s.frame.Size.Y.Offset) }):Play()
+                    TweenService:Create(s.frame, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                        Size = UDim2.new(0, s.target_w, 0, s.frame.Size.Y.Offset)
+                    }):Play()
                 end
             end)
         end
-        task.wait(0.5)
 
-        TweenService:Create(intro_title, TweenInfo.new(0.4, Enum.EasingStyle.Quad), { TextTransparency = 0 }):Play()
-        TweenService:Create(intro_stroke, TweenInfo.new(0.4, Enum.EasingStyle.Quad), { Transparency = 0.2 }):Play()
-        TweenService:Create(intro_ver, TweenInfo.new(0.4, Enum.EasingStyle.Quad), { TextTransparency = 0 }):Play()
-        TweenService:Create(intro_title_r, TweenInfo.new(0.4, Enum.EasingStyle.Quad), { TextTransparency = 0.4 }):Play()
-        TweenService:Create(intro_title_b, TweenInfo.new(0.4, Enum.EasingStyle.Quad), { TextTransparency = 0.4 }):Play()
-        
-        task.wait(0.1)
-        intro_glitch({intro_title, intro_title_r, intro_title_b}, 20, 0.6)
-        
-        task.wait(0.4)
-        play_sfx("intro_flash", 1.0, 0.8); play_sfx("intro_hum", 0.6, 0.75)
-        intro_glitch({intro_tree, intro_title, intro_ver, intro_title_r, intro_title_b}, 30, 0.4)
-        
-        local white = Instance.new("Frame")
-        white.Size = UDim2.new(1, 0, 1, 0); white.BackgroundColor3 = Color3.fromRGB(230, 255, 240)
-        white.BackgroundTransparency = 0.1; white.BorderSizePixel = 0
-        white.ZIndex = 210; white.Parent = intro
-        TweenService:Create(white, TweenInfo.new(0.5, Enum.EasingStyle.Quad), { BackgroundTransparency = 1 }):Play()
-        task.delay(0.55, function() if white.Parent then white:Destroy() end end)
+        task.wait(0.55)
 
-        task.wait(0.7)
-
-        TweenService:Create(intro, TweenInfo.new(0.6), { BackgroundTransparency = 1 }):Play()
-        TweenService:Create(intro_title, TweenInfo.new(0.5), { TextTransparency = 1, Position = UDim2.new(0, 0, 0.4, -70) }):Play()
-        TweenService:Create(intro_ver, TweenInfo.new(0.5), { TextTransparency = 1, Position = UDim2.new(0, 0, 0.4, 55) }):Play()
-        TweenService:Create(intro_title_r, TweenInfo.new(0.5), { TextTransparency = 1, Position = UDim2.new(0, -20, 0.4, -70) }):Play()
-        TweenService:Create(intro_title_b, TweenInfo.new(0.5), { TextTransparency = 1, Position = UDim2.new(0, 20, 0.4, -70) }):Play()
-        TweenService:Create(intro_stroke, TweenInfo.new(0.5), { Transparency = 1 }):Play()
-        for _, s in ipairs(intro_segs) do
-            task.spawn(function()
-                if s.frame.Parent then TweenService:Create(s.frame, TweenInfo.new(0.5), { BackgroundTransparency = 1 }):Play() end
+        for i, L in ipairs(letters) do
+            task.delay((i - 1) * 0.12, function()
+                TweenService:Create(L.main, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                    TextTransparency = 0, Position = L.target
+                }):Play()
+                TweenService:Create(L.red, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                    TextTransparency = 0.45, Position = L.target + UDim2.new(0, -8, 0, 0)
+                }):Play()
+                TweenService:Create(L.blue, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                    TextTransparency = 0.45, Position = L.target + UDim2.new(0, 8, 0, 0)
+                }):Play()
+                TweenService:Create(L.stroke, TweenInfo.new(0.4), { Transparency = 0.15 }):Play()
+                local lx = cx0 + L.target.X.Offset + 50
+                local ly = cy0 + L.target.Y.Offset + 60
+                spawn_bolt(intro, lx, ly, C.accent_g, 3)
+                spawn_dust(intro, lx, ly, C.accent, 8)
+                play_sfx("ui_click", 0.4, 1.4)
             end)
         end
-        task.wait(0.85)
+
+        task.wait(0.7)
+        TweenService:Create(intro_ver, TweenInfo.new(0.4), { TextTransparency = 0 }):Play()
+        task.wait(0.4)
+
+        play_sfx("intro_flash", 1.0, 0.8)
+        shake_intro(0.4, 10)
+        for _ = 1, 12 do
+            local col = (math.random() > 0.5) and C.accent or C.purple
+            spawn_bolt(intro, cx0 + (math.random() - 0.5) * 600, cy0 + (math.random() - 0.5) * 600, col, 4)
+            task.wait(0.03)
+        end
+
+        scanline_pass(intro, C.accent_g, 4, 0.5)
+
+        local white = Instance.new("Frame")
+        white.Size = UDim2.new(1, 0, 1, 0); white.BackgroundColor3 = Color3.fromRGB(230, 255, 240)
+        white.BackgroundTransparency = 0.05; white.BorderSizePixel = 0
+        white.ZIndex = 210; white.Parent = intro
+        TweenService:Create(white, TweenInfo.new(0.5), { BackgroundTransparency = 1 }):Play()
+        task.delay(0.6, function() if white.Parent then white:Destroy() end end)
+
+        task.wait(0.6)
+
+        TweenService:Create(intro, TweenInfo.new(0.5), { BackgroundTransparency = 1 }):Play()
+        for _, L in ipairs(letters) do
+            task.spawn(function()
+                TweenService:Create(L.main, TweenInfo.new(0.4), { TextTransparency = 1, Position = L.target + UDim2.new(0, 0, 0, -40) }):Play()
+                TweenService:Create(L.red, TweenInfo.new(0.4), { TextTransparency = 1, Position = L.target + UDim2.new(0, -40, 0, -40) }):Play()
+                TweenService:Create(L.blue, TweenInfo.new(0.4), { TextTransparency = 1, Position = L.target + UDim2.new(0, 40, 0, -40) }):Play()
+                TweenService:Create(L.stroke, TweenInfo.new(0.4), { Transparency = 1 }):Play()
+            end)
+        end
+        TweenService:Create(intro_ver, TweenInfo.new(0.5), { TextTransparency = 1, Position = UDim2.new(0, 0, 0.4, 70) }):Play()
+        for _, s in ipairs(intro_segs) do
+            task.spawn(function()
+                if s.frame.Parent then
+                    TweenService:Create(s.frame, TweenInfo.new(0.5), { BackgroundTransparency = 1 }):Play()
+                end
+            end)
+        end
+
+        task.wait(0.7)
         intro:Destroy()
+        intro_active = false
         switch_tab("VISUAL")
         open_menu()
         play_sfx("ui_click", 0.5, 1.4)
     end)
 
-    print("[LOKI " .. LOKI_VERSION .. "] DONE — Aimbot Cirúrgico e ESP Otimizado (FPS Fix).")
+    print("[LOKI " .. LOKI_VERSION .. "] DONE")
 end)
 
 if not ok then
