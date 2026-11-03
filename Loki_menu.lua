@@ -1,5 +1,5 @@
--- language: Lua, file: loki_v14_keybind_fixed.lua, target: Universal
-local LOKI_VERSION = "v14.0"
+-- language: Lua, file: loki_v15_final.lua, target: Universal
+local LOKI_VERSION = "v15.0 Final"
 print("[LOKI " .. LOKI_VERSION .. "] start")
 
 local ok, err = pcall(function()
@@ -334,9 +334,9 @@ local ok, err = pcall(function()
         esp = true, team_check = false, wall_check = false,
         esp_name = true, esp_dist = true, esp_lines = true, esp_body = false,
         fullbright = false, no_fog = false,
-        aimbot = false, mobile_aim = true, show_fov = true, rainbow_fov = false, prediction = false,
-        aim_jitter = true, 
-        target_part = "Head", fov_radius = 150, smoothing = 5, fov_alpha = 15,
+        aimbot = false, mobile_aim = true, show_fov = true, rainbow_fov = false, prediction = true,
+        aim_jitter = false, 
+        target_part = "Head", fov_radius = 150, smoothing = 4, fov_alpha = 15,
         wall_pierce = false, wall_pierce_fov = 400, wp_show_fov = true, wp_debug = false,
         enemies_only = true,
         tp_aim = false, tp_auto = false, tp_cycle_rate = 2, tp_only_grounded = true,
@@ -352,7 +352,6 @@ local ok, err = pcall(function()
     }
 
     local esp_hl, esp_drawings, los_cache = {}, {}, {}
-    local last_esp_t = 0
     local last_tp_t = 0
     local last_tp_use = 0
     local tp_current_target = nil
@@ -584,7 +583,7 @@ local ok, err = pcall(function()
     local function los_clear(plr, part)
         local now = os.clock()
         local c = los_cache[plr]
-        if c and now - c.t < 0.1 then return c.v end
+        if c and now - c.t < 0.3 then return c.v end
         local rp = RaycastParams.new()
         rp.FilterType = Enum.RaycastFilterType.Exclude; rp.IgnoreWater = true
         local filter = { Camera }
@@ -783,7 +782,7 @@ local ok, err = pcall(function()
     section("ALVO", aim_frame)
     toggle("Só Inimigos", "enemies_only", aim_frame)
 
-    section("AIMBOT (camera)", aim_frame)
+    section("AIMBOT (CIRÚRGICO)", aim_frame)
     toggle("Aimbot (RMB / toque)", "aimbot", aim_frame)
     toggle("Touch Aim", "mobile_aim", aim_frame)
     toggle("Mostrar FOV", "show_fov", aim_frame)
@@ -932,96 +931,107 @@ local ok, err = pcall(function()
         else wp_fov_overlay.Visible = false end
     end)
 
-    -- ESP LOOP (Highlight + Drawing)
+    -- ===== ESP LOOP OTIMIZADO (60Hz / Sem Atraso) =====
     RunService.RenderStepped:Connect(function()
-        local now = os.clock()
-        if now - last_esp_t < 0.06 then return end
-        last_esp_t = now
+        local vp_size = Camera.ViewportSize
+        local cam_pos = Camera.CFrame.Position
         
         for _, plr in ipairs(Players:GetPlayers()) do
             if plr ~= LP then
-                local show = cfg.esp and alive(plr)
-                if show and cfg.team_check and plr.Team and LP.Team and plr.Team == LP.Team then show = false end
-                if show and cfg.wall_check then
-                    local hrp = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
-                    if hrp and not los_clear(plr, hrp) then show = false end
-                end
-                
                 local ch = plr.Character
                 local head = ch and ch:FindFirstChild("Head")
-                local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
+                local hum = ch and ch:FindFirstChildOfClass("Humanoid")
                 
-                -- Highlight
-                if show then
-                    local hl = esp_hl[plr]
-                    if not hl or hl.Adornee ~= ch then
-                        if hl then pcall(function() hl:Destroy() end) end
-                        hl = Instance.new("Highlight")
-                        hl.Name = "LOKI_ESP"; hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop; hl.Adornee = ch; hl.Parent = esp_folder; esp_hl[plr] = hl
-                    end
-                    hl.FillColor = C.esp_green
-                    hl.OutlineColor = C.esp_green
-                    if cfg.esp_body then hl.FillTransparency = 0.5 else hl.FillTransparency = 1 end
-                    hl.OutlineTransparency = 0
-                elseif esp_hl[plr] then
-                    pcall(function() esp_hl[plr]:Destroy() end); esp_hl[plr] = nil
+                local show = cfg.esp and head and hum and hum.Health > 0
+                
+                if show and cfg.team_check and plr.Team and LP.Team and plr.Team == LP.Team then
+                    show = false
                 end
                 
-                -- Drawing ESP (Lines, Names, Distance)
-                if Drawing and show and head and hrp then
-                    local head_pos = Camera:WorldToViewportPoint(head.Position)
-                    local hrp_pos = Camera:WorldToViewportPoint(hrp.Position)
+                local dist = 0
+                if show and head then
+                    dist = (cam_pos - head.Position).Magnitude
+                    if dist > 1500 then show = false end 
+                end
+
+                if not show then
+                    if esp_drawings[plr] then
+                        esp_drawings[plr].line.Visible = false
+                        esp_drawings[plr].name.Visible = false
+                        esp_drawings[plr].dist.Visible = false
+                    end
+                    if esp_hl[plr] then
+                        esp_hl[plr].Enabled = false
+                    end
+                else
+                    local sp, on = Camera:WorldToViewportPoint(head.Position)
                     
-                    if head_pos.Z > 0 and hrp_pos.Z > 0 then
-                        if not esp_drawings[plr] then
-                            esp_drawings[plr] = {
-                                line = Drawing.new("Line"),
-                                name = Drawing.new("Text"),
-                                dist = Drawing.new("Text")
-                            }
-                            esp_drawings[plr].name.Center = true
-                            esp_drawings[plr].name.Outline = true
-                            esp_drawings[plr].name.Size = 14
-                            esp_drawings[plr].name.Font = 2
+                    if on and sp.Z > 0 then
+                        local hl = esp_hl[plr]
+                        if not hl or hl.Adornee ~= ch then
+                            if hl then hl:Destroy() end
+                            hl = Instance.new("Highlight")
+                            hl.Name = "LOKI_ESP"
+                            hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                            hl.Adornee = ch
+                            hl.Parent = esp_folder
+                            esp_hl[plr] = hl
+                        end
+                        hl.Enabled = true
+                        
+                        local col = (plr.Team and LP.Team and plr.Team == LP.Team) and C.accent or C.esp_green
+                        if hl.FillColor ~= col then
+                            hl.FillColor = col
+                            hl.OutlineColor = col
+                        end
+                        
+                        if cfg.esp_body then 
+                            if hl.FillTransparency ~= 0.5 then hl.FillTransparency = 0.5 end
+                        else 
+                            if hl.FillTransparency ~= 1 then hl.FillTransparency = 1 end
+                        end
+                        if hl.OutlineTransparency ~= 0 then hl.OutlineTransparency = 0 end
+                        
+                        if Drawing then
+                            local d = esp_drawings[plr]
+                            if not d then
+                                d = {
+                                    line = Drawing.new("Line"),
+                                    name = Drawing.new("Text"),
+                                    dist = Drawing.new("Text")
+                                }
+                                d.name.Center = true; d.name.Outline = true; d.name.Size = 14; d.name.Font = 2
+                                d.dist.Center = true; d.dist.Outline = true; d.dist.Size = 12; d.dist.Font = 2
+                                esp_drawings[plr] = d
+                            end
                             
-                            esp_drawings[plr].dist.Center = true
-                            esp_drawings[plr].dist.Outline = true
-                            esp_drawings[plr].dist.Size = 12
-                            esp_drawings[plr].dist.Font = 2
-                        end
-                        
-                        local d = esp_drawings[plr]
-                        local col = C.esp_green
-                        
-                        -- Linha
-                        if cfg.esp_lines then
-                            d.line.Visible = true
-                            d.line.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
-                            d.line.To = Vector2.new(head_pos.X, head_pos.Y)
-                            d.line.Color = col
-                            d.line.Thickness = 1
-                        else
-                            d.line.Visible = false
-                        end
-                        
-                        -- Nome
-                        if cfg.esp_name then
-                            d.name.Visible = true
-                            d.name.Text = plr.Name
-                            d.name.Position = Vector2.new(head_pos.X, head_pos.Y - 20)
-                            d.name.Color = col
-                        else
-                            d.name.Visible = false
-                        end
-                        
-                        -- Distancia
-                        if cfg.esp_dist then
-                            d.dist.Visible = true
-                            d.dist.Text = math.floor((Camera.CFrame.Position - hrp.Position).Magnitude) .. "m"
-                            d.dist.Position = Vector2.new(hrp_pos.X, hrp_pos.Y + 10)
-                            d.dist.Color = col
-                        else
-                            d.dist.Visible = false
+                            if cfg.esp_lines then
+                                d.line.Visible = true
+                                d.line.From = Vector2.new(vp_size.X / 2, vp_size.Y)
+                                d.line.To = Vector2.new(sp.X, sp.Y)
+                                d.line.Color = col
+                                d.line.Thickness = 1
+                            else
+                                d.line.Visible = false
+                            end
+                            
+                            if cfg.esp_name then
+                                d.name.Visible = true
+                                d.name.Text = plr.Name
+                                d.name.Position = Vector2.new(sp.X, sp.Y - 20)
+                                d.name.Color = col
+                            else
+                                d.name.Visible = false
+                            end
+                            
+                            if cfg.esp_dist then
+                                d.dist.Visible = true
+                                d.dist.Text = math.floor(dist) .. "m"
+                                d.dist.Position = Vector2.new(sp.X, sp.Y + 15)
+                                d.dist.Color = col
+                            else
+                                d.dist.Visible = false
+                            end
                         end
                     else
                         if esp_drawings[plr] then
@@ -1029,12 +1039,8 @@ local ok, err = pcall(function()
                             esp_drawings[plr].name.Visible = false
                             esp_drawings[plr].dist.Visible = false
                         end
+                        if esp_hl[plr] then esp_hl[plr].Enabled = false end
                     end
-                elseif esp_drawings[plr] then
-                    esp_drawings[plr].line:Remove()
-                    esp_drawings[plr].name:Remove()
-                    esp_drawings[plr].dist:Remove()
-                    esp_drawings[plr] = nil
                 end
             end
         end
@@ -1145,6 +1151,7 @@ local ok, err = pcall(function()
         return true
     end
 
+    -- ===== AIMBOT SURGICAL =====
     RunService:BindToRenderStep("LOKI_AIM", Enum.RenderPriority.Camera.Value + 1, function(dt)
         local trigger = rmb_down or (cfg.mobile_aim and touch_active)
 
@@ -1166,24 +1173,34 @@ local ok, err = pcall(function()
         local target = get_target()
         if not target then return end
 
-        local alpha = math.clamp((dt * 60) / math.max(cfg.smoothing, 1), 0.02, 1)
+        local tpos = target.CFrame.Position
+        
+        if cfg.prediction then
+            local vel = target.AssemblyLinearVelocity
+            if vel.Magnitude > 0.5 then
+                local dist = (tpos - Camera.CFrame.Position).Magnitude
+                local travel_time = dist / 2000 
+                tpos = tpos + vel * travel_time 
+            end
+        end
+        
+        if cfg.aim_jitter then 
+            tpos = tpos + Vector3.new((math.random() - 0.5) * 0.05, (math.random() - 0.5) * 0.05, (math.random() - 0.5) * 0.05) 
+        end
+
+        local alpha = math.clamp((dt * 60) / math.max(cfg.smoothing, 1), 0.05, 1)
         
         if mousemoverel then
-            local sp, on = Camera:WorldToViewportPoint(target.Position)
+            local sp, on = Camera:WorldToViewportPoint(tpos)
             if on and sp.Z > 0 then
                 local center = Camera.ViewportSize / 2
                 local delta = Vector2.new(sp.X, sp.Y) - center
-                if cfg.aim_jitter then delta = delta + Vector2.new((math.random() - 0.5) * 2, (math.random() - 0.5) * 2) end
-                if delta.Magnitude > 0.5 then pcall(mousemoverel, delta.X * alpha, delta.Y * alpha) end
+                if delta.Magnitude > 0.5 then 
+                    pcall(mousemoverel, delta.X * alpha, delta.Y * alpha) 
+                end
             end
         else
             local cam_pos = Camera.CFrame.Position
-            local tpos = target.Position
-            if cfg.prediction then
-                local vel = target.AssemblyLinearVelocity
-                if vel.Magnitude > 0.1 then tpos = tpos + vel * 0.04 end
-            end
-            if cfg.aim_jitter then tpos = tpos + Vector3.new((math.random() - 0.5) * 0.2, (math.random() - 0.5) * 0.2, (math.random() - 0.5) * 0.2) end
             local currentLook = Camera.CFrame.LookVector
             local targetDir = (tpos - cam_pos).Unit
             local newDir = currentLook:Lerp(targetDir, alpha)
@@ -1248,7 +1265,6 @@ local ok, err = pcall(function()
     min_btn.MouseButton1Click:Connect(function() if cfg.menu_state == "open" then minimize_menu() else open_menu() end end)
     close_btn.MouseButton1Click:Connect(close_menu)
 
-    -- Lógica de tecla (abre / minimiza / fecha)
     UIS.InputBegan:Connect(function(input, gp)
         if cfg.waiting_key and input.UserInputType == Enum.UserInputType.Keyboard then
             cfg.menu_key = input.KeyCode
@@ -1259,11 +1275,7 @@ local ok, err = pcall(function()
         end
         
         if input.KeyCode == cfg.menu_key then
-            if cfg.menu_state == "open" then
-                minimize_menu()
-            else
-                open_menu()
-            end
+            if cfg.menu_state == "open" then minimize_menu() else open_menu() end
         end
     end)
 
@@ -1278,7 +1290,7 @@ local ok, err = pcall(function()
         los_cache[plr] = nil
     end)
 
-    -- ===== INTRO (sem YGGDRASIL) =====
+    -- ===== INTRO =====
     local intro = Instance.new("Frame")
     intro.Size = UDim2.new(1, 0, 1, 0); intro.BackgroundColor3 = Color3.new(0, 0, 0)
     intro.BackgroundTransparency = 0; intro.BorderSizePixel = 0; intro.ZIndex = 200; intro.Parent = gui
@@ -1449,7 +1461,7 @@ local ok, err = pcall(function()
         play_sfx("ui_click", 0.5, 1.4)
     end)
 
-    print("[LOKI " .. LOKI_VERSION .. "] DONE — Tecla e Toggle Corrigidos.")
+    print("[LOKI " .. LOKI_VERSION .. "] DONE — Aimbot Cirúrgico e ESP Otimizado (FPS Fix).")
 end)
 
 if not ok then
