@@ -1,6 +1,11 @@
--- language: Lua, file: loki_v19_1.lua, target: Universal
-local LOKI_VERSION = "v19.1"
+-- language: Lua, file: loki_v20.lua, target: Universal
+local LOKI_VERSION = "v20"
 print("[LOKI " .. LOKI_VERSION .. "] start")
+
+local genv = (getgenv and getgenv()) or _G
+if genv.LOKI_CLEAN then pcall(genv.LOKI_CLEAN) end
+local conns = {}
+local function track(c) conns[#conns + 1] = c; return c end
 
 local ok, err = pcall(function()
     local Players      = game:GetService("Players")
@@ -12,10 +17,15 @@ local ok, err = pcall(function()
     local TS           = game:GetService("TeleportService")
     local SoundService = game:GetService("SoundService")
 
-    local mousemoverel = rawget(getfenv(0), "mousemoverel") or rawget(_G, "mousemoverel")
-    local CoreGui = gethui and select(2, pcall(gethui)) or game:GetService("CoreGui")
-    if not CoreGui then CoreGui = Players.LocalPlayer:WaitForChild("PlayerGui") end
+    local mousemoverel = genv.mousemoverel or mousemoverel
+    local mouse1click_fn = genv.mouse1click or mouse1click
+    local CoreGui = game:GetService("CoreGui")
+    if gethui then
+        local okh, h = pcall(gethui)
+        if okh and typeof(h) == "Instance" then CoreGui = h end
+    end
 
+    repeat task.wait() until Players.LocalPlayer
     local LP = Players.LocalPlayer
     local Camera = Workspace.CurrentCamera
     local intro_active = true
@@ -24,7 +34,7 @@ local ok, err = pcall(function()
     if old then old:Destroy() end
     local old_f = Workspace:FindFirstChild("__LOKI_ESP")
     if old_f then old_f:Destroy() end
-    
+
     local esp_folder = Instance.new("Folder")
     esp_folder.Name = "__LOKI_ESP"; esp_folder.Parent = Workspace
 
@@ -36,6 +46,7 @@ local ok, err = pcall(function()
         purple = Color3.fromRGB(160, 60, 255), purple_d = Color3.fromRGB(80, 20, 140),
         danger = Color3.fromRGB(255, 60, 60), danger_d = Color3.fromRGB(160, 30, 30),
         text = Color3.fromRGB(220, 255, 225), off = Color3.fromRGB(50, 65, 50),
+        orange = Color3.fromRGB(255, 160, 40),
     }
 
     local gui = Instance.new("ScreenGui")
@@ -152,15 +163,22 @@ local ok, err = pcall(function()
         end
     end
 
-    local fov_overlay = Instance.new("Frame")
-    fov_overlay.AnchorPoint = Vector2.new(0.5, 0.5); fov_overlay.Position = UDim2.new(0.5, 0, 0.5, 0)
-    fov_overlay.Size = UDim2.new(0, 400, 0, 400); fov_overlay.BackgroundTransparency = 1
-    fov_overlay.BorderSizePixel = 0; fov_overlay.Visible = false; fov_overlay.Parent = gui
-    Instance.new("UICorner", fov_overlay).CornerRadius = UDim.new(0.5, 0)
-    local fov_stroke = Instance.new("UIStroke", fov_overlay)
-    fov_stroke.Thickness = 2; fov_stroke.Color = C.accent; fov_stroke.Transparency = 0.15
+    local function make_circle(color, thick, transp)
+        local fr = Instance.new("Frame")
+        fr.AnchorPoint = Vector2.new(0.5, 0.5); fr.Position = UDim2.new(0.5, 0, 0.5, 0)
+        fr.Size = UDim2.new(0, 400, 0, 400); fr.BackgroundTransparency = 1
+        fr.BorderSizePixel = 0; fr.Visible = false; fr.Parent = gui
+        Instance.new("UICorner", fr).CornerRadius = UDim.new(0.5, 0)
+        local st = Instance.new("UIStroke", fr)
+        st.Thickness = thick; st.Color = color; st.Transparency = transp
+        return fr, st
+    end
+
+    local fov_overlay, fov_stroke = make_circle(C.accent, 2, 0.15)
     local fov_glow = Instance.new("UIStroke", fov_overlay)
     fov_glow.Thickness = 6; fov_glow.Color = C.accent; fov_glow.Transparency = 0.85
+    local wp_overlay = make_circle(C.purple, 2, 0.3)
+    local sil_overlay = make_circle(C.orange, 2, 0.25)
 
     main = Instance.new("Frame")
     main.Position = UDim2.new(0, 40, 0, 90); main.Size = UDim2.new(0, 0, 0, 0)
@@ -203,8 +221,8 @@ local ok, err = pcall(function()
                 local x, y
                 if pos < MAIN_W then x, y = pos, 0
                 elseif pos < MAIN_W + MAIN_H then x, y = MAIN_W, pos - MAIN_W
-                elseif pos < 2*MAIN_W + MAIN_H then x, y = MAIN_W - (pos - MAIN_W - MAIN_H), MAIN_H
-                else x, y = 0, MAIN_H - (pos - 2*MAIN_W - MAIN_H) end
+                elseif pos < 2 * MAIN_W + MAIN_H then x, y = MAIN_W - (pos - MAIN_W - MAIN_H), MAIN_H
+                else x, y = 0, MAIN_H - (pos - 2 * MAIN_W - MAIN_H) end
                 orbit_dot.Position = UDim2.fromOffset(x, y)
             end
             task.wait(0.033)
@@ -367,7 +385,7 @@ local ok, err = pcall(function()
 
     local function create_tab(name, width)
         local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(0, width or 76, 1, 0); btn.BackgroundColor3 = C.bg2
+        btn.Size = UDim2.new(0, width or 60, 1, 0); btn.BackgroundColor3 = C.bg2
         btn.Text = name; btn.TextColor3 = C.text; btn.Font = Enum.Font.GothamBold
         btn.TextSize = 11; btn.BorderSizePixel = 0; btn.Parent = tab_bar
         Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
@@ -391,47 +409,38 @@ local ok, err = pcall(function()
 
     local visual_frame = create_tab("VISUAL")
     local aim_frame = create_tab("AIMBOT")
+    local silent_frame = create_tab("SILENT")
     local move_frame = create_tab("MOVIM")
     local risk_frame = create_tab("RISCO")
 
-    for _, f in pairs(tab_frames) do
-        local scan1 = Instance.new("Frame")
-        scan1.Size = UDim2.new(1, -20, 0, 2); scan1.Position = UDim2.new(0, 10, 0, -2)
-        scan1.BackgroundColor3 = C.accent; scan1.BackgroundTransparency = 0.85
-        scan1.BorderSizePixel = 0; scan1.ZIndex = 10; scan1.Parent = f
-        task.spawn(function()
-            while scan1.Parent do
-                scan1.Position = UDim2.new(0, 10, 0, -2)
-                TweenService:Create(scan1, TweenInfo.new(5, Enum.EasingStyle.Linear), { Position = UDim2.new(0, 10, 1, 0) }):Play()
-                task.wait(10)
-            end
-        end)
-    end
-
-    -- ============ CONFIG COM VALORES INTEIROS ============
     local cfg = {
         esp = true, team_check = false, wall_check = false,
         esp_name = true, esp_dist = true, esp_lines = false, esp_body = false,
         fullbright = false, no_fog = false,
         aimbot = false, mobile_aim = true, show_fov = true, rainbow_fov = false, prediction = true,
         aim_jitter = false,
+        aim_mode = "RMB", aim_method = "Auto",
         target_part = "Head", fov_radius = 150, smoothing = 4, fov_alpha = 15,
         aimbot_min_dist = 5, aimbot_max_dist = 400,
         aimbot_priority = "Smart",
         aimbot_angle_weight = 150,
         wall_pierce = false, wall_pierce_fov = 400, wp_show_fov = false, wp_debug = false,
         enemies_only = true,
+        -- silent aim / bala mágica
+        silent_aim = false, silent_remote = false, silent_always = true,
+        silent_wallcheck = false, silent_show_fov = true,
+        silent_fov = 200, silent_hitchance = 100, silent_part = "Head",
         revenge_mark = true,
         revenge_duration = 120,
         revenge_radius = 200,
         revenge_los_radius = 500,
         revenge_max_suspects = 1,
-        tp_aim = false, tp_auto = false, tp_cycle_rate = 2, tp_only_grounded = true,
-        tp_smooth = true,
-        tp_smooth_ms = 120,   -- milissegundos (antes era 0.12s)
-        tp_max_dist = 500,
-        auto_fire = false,
-        fire_delay_ms = 100,  -- milissegundos (antes era 0.1s)
+        -- TP
+        tp_aim = false, tp_auto = false, tp_autofire = true,
+        tp_only_grounded = false, tp_smooth = true, tp_smooth_ms = 120,
+        tp_cycle_rate = 0, tp_max_dist = 2000,
+        tp_pos = "Cima", tp_height = 4,
+        auto_fire = false, fire_delay_ms = 100,
         god = false,
         walkspeed = 16, jumppower = 50,
         noclip = false, infjump = false, fly = false, fly_speed = 50,
@@ -442,9 +451,6 @@ local ok, err = pcall(function()
     }
 
     local esp_hl, esp_drawings, los_cache = {}, {}, {}
-    local last_tp_t = 0
-    local tp_current_target = nil
-    local tp_target_start = 0
     local last_safe_pos = Vector3.new(0, 50, 0)
     local hue = 0
     local touch_active = false
@@ -455,7 +461,18 @@ local ok, err = pcall(function()
     local noclip_conn, infjump_conn, god_conn, god_char_conn
     local god_ff
     local last_fire_t = 0
-    local orig = { Brightness = Lighting.Brightness, FogEnd = Lighting.FogEnd, FogStart = Lighting.FogStart }
+    local orig = {
+        Brightness = Lighting.Brightness, FogEnd = Lighting.FogEnd, FogStart = Lighting.FogStart,
+        Ambient = Lighting.Ambient, OutdoorAmbient = Lighting.OutdoorAmbient, GlobalShadows = Lighting.GlobalShadows,
+    }
+
+    -- estado compartilhado com os hooks (persistente entre reexecuções)
+    local S = genv.LOKI_S or {}
+    genv.LOKI_S = S
+    S.on = false; S.target = nil; S.pos = Vector3.zero; S.vp = nil; S.sc = nil
+    S.fire_t = 0; S.busy = false; S.hit = true; S.roll_t = 0
+    S.ws = Workspace; S.cam = Camera; S.mouse = LP:GetMouse()
+    S.always = true; S.remote = false
 
     -- ===== REVENGE =====
     local event_log = {}
@@ -467,13 +484,13 @@ local ok, err = pcall(function()
 
     local killer_marks = {}
     local damage_events = {}
-    local death_handled = true
     local last_hp_seen = 100
     local last_my_pos = Vector3.new(0, 50, 0)
     local last_damage_clock = 0
     local last_attacker = nil
     local last_attacker_time = 0
     local last_dmg_record = 0
+    local suppress_until = 0
 
     local function clear_killer_marks()
         killer_marks = {}
@@ -498,7 +515,7 @@ local ok, err = pcall(function()
                 local pHum = plr.Character:FindFirstChildOfClass("Humanoid")
                 if pHrp and pHum and pHum.Health > 0 then
                     local d = (pHrp.Position - my_pos).Magnitude
-                    if d <= max_dist then
+                    if d <= max_dist and d > 0.01 then
                         local toMe = (my_pos - pHrp.Position).Unit
                         local faceScore = 0
                         if pHead then faceScore = math.max(faceScore, pHead.CFrame.LookVector:Dot(toMe)) end
@@ -559,9 +576,10 @@ local ok, err = pcall(function()
         end
         log_event(("eventos de dano: %d"):format(eventos_recentes))
         if last_attacker and (now - last_attacker_time) < 10
+           and last_attacker.Parent
            and last_attacker.Character
            and last_attacker.Character:FindFirstChildOfClass("Humanoid")
-           and last_attacker.Character.Humanoid.Health > 0 then
+           and last_attacker.Character:FindFirstChildOfClass("Humanoid").Health > 0 then
             tally[last_attacker] = (tally[last_attacker] or 0) + 5
             log_event("último atacante vivo: " .. last_attacker.Name)
         end
@@ -603,17 +621,19 @@ local ok, err = pcall(function()
         else log_event("nenhum suspeito válido") end
     end
 
+    local was_alive = false
     task.spawn(function()
         while gui.Parent do
             local char = LP.Character
-            if char then
-                local hrp = char:FindFirstChild("HumanoidRootPart")
-                if hrp then last_my_pos = hrp.Position end
-                local h = char:FindFirstChildOfClass("Humanoid")
-                if h then
-                    local hp = h.Health
-                    if death_handled then last_hp_seen = hp; death_handled = false end
-                    if hp < last_hp_seen - 0.5 and hp > 0 then
+            local h = char and char:FindFirstChildOfClass("Humanoid")
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            if hrp then last_my_pos = hrp.Position end
+            if h then
+                local hp = h.Health
+                if hp > 0 then
+                    if not was_alive then last_hp_seen = hp; damage_events = {} end
+                    was_alive = true
+                    if hp < last_hp_seen - 0.5 then
                         last_damage_clock = os.clock()
                         if cfg.revenge_mark then
                             log_event(("dano: %.0f -> %.0f"):format(last_hp_seen, hp))
@@ -625,29 +645,17 @@ local ok, err = pcall(function()
                             end
                         end
                     end
-                    if hp <= 0 and not death_handled then
-                        death_handled = true
-                        handle_death(last_my_pos)
-                    end
                     last_hp_seen = hp
+                elseif was_alive then
+                    was_alive = false
+                    if os.clock() > suppress_until then handle_death(last_my_pos) end
                 end
-            else
-                if not death_handled and last_hp_seen > 0 then
-                    death_handled = true
-                    handle_death(last_my_pos)
-                end
+            elseif was_alive then
+                was_alive = false
+                if os.clock() > suppress_until then handle_death(last_my_pos) end
             end
             task.wait(0.25)
         end
-    end)
-
-    LP.CharacterAdded:Connect(function(char)
-        task.wait(0.3)
-        death_handled = true
-        last_damage_clock = 0
-        damage_events = {}
-        local h = char:FindFirstChildOfClass("Humanoid")
-        last_hp_seen = h and h.Health or 100
     end)
 
     UIS.InputChanged:Connect(function(inp)
@@ -763,7 +771,6 @@ local ok, err = pcall(function()
         end)
     end
 
-    -- SLIDER INTEIRO (sempre número inteiro, sem decimais)
     local function slider(name, min, max, key, parent, cb)
         local f = Instance.new("Frame")
         f.Size = UDim2.new(1, -10, 0, 44); f.BackgroundColor3 = C.bg2
@@ -775,26 +782,26 @@ local ok, err = pcall(function()
         lbl.BackgroundTransparency = 1; lbl.TextColor3 = C.text
         lbl.Font = Enum.Font.Gotham; lbl.TextSize = 12
         lbl.TextXAlignment = Enum.TextXAlignment.Left; lbl.Parent = f
-        local track = Instance.new("Frame")
-        track.Size = UDim2.new(1, -20, 0, 4); track.Position = UDim2.new(0, 10, 0, 30)
-        track.BackgroundColor3 = C.bg3; track.BorderSizePixel = 0; track.Parent = f
-        Instance.new("UICorner", track).CornerRadius = UDim.new(1, 0)
+        local track_f = Instance.new("Frame")
+        track_f.Size = UDim2.new(1, -20, 0, 4); track_f.Position = UDim2.new(0, 10, 0, 30)
+        track_f.BackgroundColor3 = C.bg3; track_f.BorderSizePixel = 0; track_f.Parent = f
+        Instance.new("UICorner", track_f).CornerRadius = UDim.new(1, 0)
         local fill = Instance.new("Frame")
         fill.Size = UDim2.new((math.floor(cfg[key] + 0.5) - min) / (max - min), 0, 1, 0)
-        fill.BackgroundColor3 = C.accent; fill.BorderSizePixel = 0; fill.Parent = track
+        fill.BackgroundColor3 = C.accent; fill.BorderSizePixel = 0; fill.Parent = track_f
         Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
         local knob = Instance.new("Frame")
         knob.Size = UDim2.new(0, 12, 0, 12); knob.Position = UDim2.new(fill.Size.X.Scale, -6, 0.5, -6)
-        knob.BackgroundColor3 = C.accent_g; knob.BorderSizePixel = 0; knob.Parent = track
+        knob.BackgroundColor3 = C.accent_g; knob.BorderSizePixel = 0; knob.Parent = track_f
         Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
         local knob_stroke = Instance.new("UIStroke", knob)
         knob_stroke.Color = C.accent; knob_stroke.Thickness = 2; knob_stroke.Transparency = 0.5
         local hit = Instance.new("TextButton")
-        hit.Size = UDim2.new(1, 0, 1, 0); hit.BackgroundTransparency = 1; hit.Text = ""; hit.Parent = track
+        hit.Size = UDim2.new(1, 0, 1, 0); hit.BackgroundTransparency = 1; hit.Text = ""; hit.Parent = track_f
         local dragging = false
         local function set_val(px)
-            local pos = math.clamp((px - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
-            local v = math.floor(min + (max - min) * pos + 0.5) -- arredonda sempre
+            local pos = math.clamp((px - track_f.AbsolutePosition.X) / math.max(track_f.AbsoluteSize.X, 1), 0, 1)
+            local v = math.floor(min + (max - min) * pos + 0.5)
             if v < min then v = min end
             if v > max then v = max end
             cfg[key] = v
@@ -805,11 +812,11 @@ local ok, err = pcall(function()
         end
         hit.MouseButton1Down:Connect(function()
             dragging = true; TweenService:Create(knob_stroke, TweenInfo.new(0.1), { Transparency = 0 }):Play()
-            set_val(last_input.X)
+            set_val(UIS:GetMouseLocation().X)
         end)
         UIS.InputChanged:Connect(function(i)
             if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
-                set_val(last_input.X)
+                set_val(i.Position.X)
             end
         end)
         UIS.InputEnded:Connect(function(i)
@@ -861,8 +868,11 @@ local ok, err = pcall(function()
     local function alive(plr)
         local ch = plr.Character
         if not ch then return false end
+        local hrp = ch:FindFirstChild("HumanoidRootPart") or ch.PrimaryPart
+        if not hrp then return false end
         local h = ch:FindFirstChildOfClass("Humanoid")
-        return h and h.Health > 0 and ch:FindFirstChild("HumanoidRootPart")
+        if h then return h.Health > 0 and hrp end
+        return hrp
     end
     local function is_enemy(plr)
         if plr == LP then return false end
@@ -892,44 +902,43 @@ local ok, err = pcall(function()
         return true
     end
 
-    -- try_fire: usa fire_delay_ms / 1000
-    local function try_fire()
-        local now = os.clock()
-        local delay = math.max((cfg.fire_delay_ms or 100) / 1000, 0.06)
-        if now - last_fire_t < delay then return false end
-        last_fire_t = now
-        pcall(function()
-            local vu = game:GetService("VirtualUser")
-            vu:CaptureController()
-            vu:ClickButton1(Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2))
-        end)
-        pcall(function()
-            local char = LP.Character
-            if char then
-                local tool = char:FindFirstChildOfClass("Tool")
-                if tool then tool:Activate() end
-            end
-        end)
-        return true
+    local function aim_origin()
+        if UIS.MouseBehavior == Enum.MouseBehavior.LockCenter
+            or (UIS.TouchEnabled and not UIS.MouseEnabled) then
+            return Camera.ViewportSize / 2
+        end
+        return UIS:GetMouseLocation()
     end
 
-    local function find_wall_pierce_target()
-        local center = Camera.ViewportSize / 2
-        local best, best_d = nil, cfg.wall_pierce_fov
-        for _, plr in ipairs(Players:GetPlayers()) do
-            if is_enemy(plr) and alive(plr) then
-                local ch = plr.Character
-                local head = ch:FindFirstChild("Head")
-                if head and head:IsA("BasePart") then
-                    local sp, on = Camera:WorldToViewportPoint(head.Position)
-                    if on and sp.Z > 0 then
-                        local d = (Vector2.new(sp.X, sp.Y) - center).Magnitude
-                        if d < best_d then best_d = d; best = head end
-                    end
-                end
+    local function cursor_over_menu()
+        if not main.Visible then return false end
+        local m = UIS:GetMouseLocation()
+        local p, s = main.AbsolutePosition, main.AbsoluteSize
+        return m.X >= p.X and m.X <= p.X + s.X and m.Y >= p.Y and m.Y <= p.Y + s.Y
+    end
+
+    -- tiro: Tool:Activate + clique real (se o executor tiver) ou VirtualUser
+    local function try_fire()
+        local now = os.clock()
+        local delay = math.max((cfg.fire_delay_ms or 100) / 1000, 0.05)
+        if now - last_fire_t < delay then return false end
+        last_fire_t = now
+        S.fire_t = now + 0.3
+        local char = LP.Character
+        local tool = char and char:FindFirstChildOfClass("Tool")
+        if tool then pcall(function() tool:Activate() end) end
+        if not cursor_over_menu() then
+            if mouse1click_fn then
+                pcall(mouse1click_fn)
+            else
+                pcall(function()
+                    local vu = game:GetService("VirtualUser")
+                    vu:CaptureController()
+                    vu:ClickButton1(Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2))
+                end)
             end
         end
-        return best
+        return true
     end
 
     section("VISUAL", visual_frame)
@@ -940,9 +949,28 @@ local ok, err = pcall(function()
     toggle("ESP Linhas (Tracers)", "esp_lines", visual_frame)
     toggle("Team Check ESP", "team_check", visual_frame)
     toggle("Wall Check", "wall_check", visual_frame)
-    toggle("Fullbright", "fullbright", visual_frame, function(on) Lighting.Brightness = on and 3 or orig.Brightness end)
+    toggle("Fullbright", "fullbright", visual_frame, function(on)
+        if not on then
+            Lighting.Brightness = orig.Brightness; Lighting.Ambient = orig.Ambient
+            Lighting.OutdoorAmbient = orig.OutdoorAmbient; Lighting.GlobalShadows = orig.GlobalShadows
+        end
+    end)
     toggle("Sem Fog", "no_fog", visual_frame, function(on)
-        if on then Lighting.FogEnd = 100000; Lighting.FogStart = 100000 else Lighting.FogEnd = orig.FogEnd; Lighting.FogStart = orig.FogStart end
+        if not on then Lighting.FogEnd = orig.FogEnd; Lighting.FogStart = orig.FogStart end
+    end)
+    task.spawn(function()
+        while gui.Parent do
+            if cfg.fullbright then
+                Lighting.Brightness = 3; Lighting.Ambient = Color3.new(1, 1, 1)
+                Lighting.OutdoorAmbient = Color3.new(1, 1, 1); Lighting.GlobalShadows = false
+            end
+            if cfg.no_fog then
+                Lighting.FogEnd = 1e5; Lighting.FogStart = 1e5
+                local atm = Lighting:FindFirstChildOfClass("Atmosphere")
+                if atm then atm.Density = 0 end
+            end
+            task.wait(0.5)
+        end
     end)
 
     section("REVENGE MARK", visual_frame, C.killer)
@@ -964,7 +992,7 @@ local ok, err = pcall(function()
             local test = enemies[math.random(1, #enemies)]
             mark_killer(test, "teste_manual")
             log_event("TESTE: marcado " .. test.Name)
-            show_killer_popup({test.Name})
+            show_killer_popup({ test.Name })
         else log_event("TESTE: nenhum inimigo disponível") end
     end
 
@@ -980,7 +1008,7 @@ local ok, err = pcall(function()
 
     local log_title = Instance.new("TextLabel")
     log_title.Size = UDim2.new(1, -10, 0, 16); log_title.Position = UDim2.new(0, 6, 0, 3)
-    log_title.BackgroundTransparency = 1; log_title.Text = "REVENGE LOG (últimas 6)"
+    log_title.BackgroundTransparency = 1; log_title.Text = "LOG (últimas 6)"
     log_title.TextColor3 = C.killer; log_title.Font = Enum.Font.GothamBold
     log_title.TextSize = 10; log_title.TextXAlignment = Enum.TextXAlignment.Left
     log_title.Parent = log_holder
@@ -1038,27 +1066,43 @@ local ok, err = pcall(function()
     toggle("Só Inimigos", "enemies_only", aim_frame)
 
     section("AIMBOT", aim_frame)
-    toggle("Aimbot (RMB / toque)", "aimbot", aim_frame)
+    toggle("Aimbot", "aimbot", aim_frame)
+    selector("Gatilho", { "RMB", "LMB", "Sempre" }, "aim_mode", aim_frame)
+    selector("Método", { "Auto", "Mouse", "Camera" }, "aim_method", aim_frame)
     toggle("Touch Aim", "mobile_aim", aim_frame)
     toggle("Mostrar FOV", "show_fov", aim_frame)
     toggle("Predicao", "prediction", aim_frame)
     toggle("Humanizacao (Jitter)", "aim_jitter", aim_frame)
     slider("FOV", 50, 500, "fov_radius", aim_frame)
     slider("Suavizacao", 1, 10, "smoothing", aim_frame)
-    selector("Parte Alvo", {"Head", "HumanoidRootPart", "UpperTorso", "Torso"}, "target_part", aim_frame)
+    selector("Parte Alvo", { "Head", "HumanoidRootPart", "UpperTorso", "Torso" }, "target_part", aim_frame)
 
     section("ALCANCE DO AIMBOT", aim_frame)
     slider("Distância Max (studs)", 50, 2000, "aimbot_max_dist", aim_frame)
     slider("Distância Min (studs)", 0, 100, "aimbot_min_dist", aim_frame)
-    selector("Prioridade", {"Smart", "Closest", "FOV"}, "aimbot_priority", aim_frame)
+    selector("Prioridade", { "Smart", "Closest", "FOV" }, "aimbot_priority", aim_frame)
 
     section("SMART MODE (peso)", aim_frame)
     slider("Peso do centro", 0, 500, "aimbot_angle_weight", aim_frame)
 
     section("WALL PIERCE", aim_frame)
-    toggle("Wall Pierce (via câmera)", "wall_pierce", aim_frame)
+    toggle("Wall Pierce (mira através de parede)", "wall_pierce", aim_frame)
     toggle("Mostrar WP FOV", "wp_show_fov", aim_frame)
     slider("WP FOV", 50, 800, "wall_pierce_fov", aim_frame)
+
+    section("SILENT AIM / BALA MÁGICA", silent_frame, C.orange)
+    toggle("Silent Aim (bala na cabeça)", "silent_aim", silent_frame, function(on)
+        if on and not genv.LOKI_HOOKED then
+            log_event("silent: executor sem hookmetamethod")
+        end
+    end)
+    toggle("Bala Mágica (remotes de tiro)", "silent_remote", silent_frame)
+    toggle("Sempre ativo (sem janela de tiro)", "silent_always", silent_frame)
+    toggle("Wall Check Silent", "silent_wallcheck", silent_frame)
+    toggle("Mostrar FOV Silent", "silent_show_fov", silent_frame)
+    slider("FOV Silent", 30, 800, "silent_fov", silent_frame)
+    slider("Hit Chance (%)", 1, 100, "silent_hitchance", silent_frame)
+    selector("Parte Silent", { "Head", "HumanoidRootPart", "UpperTorso", "Torso" }, "silent_part", silent_frame)
 
     section("MOVIMENTO", move_frame)
     slider("WalkSpeed", 8, 100, "walkspeed", move_frame, function(v) local h = hum(); if h then h.WalkSpeed = v end end)
@@ -1151,6 +1195,7 @@ local ok, err = pcall(function()
     action_btn("Reset personagem", function()
         local h = hum(); local char = LP.Character
         if not h or not char then return end
+        suppress_until = os.clock() + 5
         pcall(function() if fly_bv then fly_bv:Destroy(); fly_bv = nil end; if fly_bg then fly_bg:Destroy(); fly_bg = nil end end)
         pcall(function() h.Health = 0 end); pcall(function() char:BreakJoints() end)
     end, move_frame)
@@ -1158,28 +1203,36 @@ local ok, err = pcall(function()
 
     section("TP AIM", risk_frame, C.danger)
     toggle("TP Manual (RMB -> cabeça)", "tp_aim", risk_frame, nil, true)
-    toggle("TP Auto (ciclo sem RMB)", "tp_auto", risk_frame, nil, true)
+    toggle("TP Auto (sempre, sem apertar nada)", "tp_auto", risk_frame, nil, true)
+    toggle("TP Auto Atirar", "tp_autofire", risk_frame, nil, true)
     toggle("TP só se alvo no chão", "tp_only_grounded", risk_frame, nil, true)
-    toggle("TP Suave (Anti-Ban)", "tp_smooth", risk_frame, nil, true)
-    slider("TP Tempo (ms)", 50, 500, "tp_smooth_ms", risk_frame)    -- inteiro em ms
-    slider("TP Dist Max", 50, 800, "tp_max_dist", risk_frame)
-    slider("TP Cycle (s)", 1, 5, "tp_cycle_rate", risk_frame)       -- 1-5 segundos inteiros
+    toggle("TP Suave", "tp_smooth", risk_frame, nil, true)
+    selector("TP Posição", { "Cima", "Atrás" }, "tp_pos", risk_frame)
+    slider("TP Altura/Distância", 1, 15, "tp_height", risk_frame)
+    slider("TP Tempo (ms)", 50, 500, "tp_smooth_ms", risk_frame)
+    slider("TP Dist Max", 50, 5000, "tp_max_dist", risk_frame)
+    slider("TP Trocar alvo (s) 0=fixo", 0, 10, "tp_cycle_rate", risk_frame)
 
     section("FIRE / GOD", risk_frame, C.danger)
     toggle("Auto Fire (LMB segura)", "auto_fire", risk_frame, nil, true)
-    slider("Fire Delay (ms)", 50, 500, "fire_delay_ms", risk_frame) -- inteiro em ms
+    slider("Fire Delay (ms)", 50, 500, "fire_delay_ms", risk_frame)
     toggle("Godmode (teste)", "god", risk_frame, function(on) set_god(on) end, true)
 
     -- RenderStepped único
-    local esp_accum = 0
-    RunService.RenderStepped:Connect(function(dt)
+    track(RunService.RenderStepped:Connect(function(dt)
+        Camera = Workspace.CurrentCamera or Camera
         rmb_down = UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
         lmb_down = UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)
 
-        if intro_active then fov_overlay.Visible = false; return end
+        if intro_active then
+            fov_overlay.Visible = false; wp_overlay.Visible = false; sil_overlay.Visible = false
+            return
+        end
 
+        local origin = aim_origin()
         if cfg.show_fov and cfg.aimbot then
             fov_overlay.Visible = true
+            fov_overlay.Position = UDim2.fromOffset(origin.X, origin.Y)
             fov_overlay.Size = UDim2.new(0, cfg.fov_radius * 2, 0, cfg.fov_radius * 2)
             local a = math.clamp(cfg.fov_alpha / 100, 0, 1)
             fov_stroke.Transparency = a; fov_glow.Transparency = math.clamp(a + 0.55, 0, 1)
@@ -1188,9 +1241,21 @@ local ok, err = pcall(function()
             else fov_stroke.Color = C.accent; fov_glow.Color = C.accent end
         else fov_overlay.Visible = false end
 
+        if cfg.wp_show_fov and cfg.wall_pierce and cfg.aimbot then
+            wp_overlay.Visible = true
+            wp_overlay.Position = UDim2.fromOffset(origin.X, origin.Y)
+            wp_overlay.Size = UDim2.new(0, cfg.wall_pierce_fov * 2, 0, cfg.wall_pierce_fov * 2)
+        else wp_overlay.Visible = false end
+
+        if cfg.silent_aim and cfg.silent_show_fov then
+            sil_overlay.Visible = true
+            sil_overlay.Position = UDim2.fromOffset(origin.X, origin.Y)
+            sil_overlay.Size = UDim2.new(0, cfg.silent_fov * 2, 0, cfg.silent_fov * 2)
+        else sil_overlay.Visible = false end
+
         if cfg.fly then
-            if not fly_bv then set_fly(true) end
-            if fly_bv then
+            if not fly_bv or not fly_bv.Parent then set_fly(true) end
+            if fly_bv and fly_bg and fly_bg.Parent then
                 local h = hum()
                 if h then
                     local dir = h.MoveDirection
@@ -1212,11 +1277,13 @@ local ok, err = pcall(function()
             if fly_bv then set_fly(false) end
         end
 
-        esp_accum = esp_accum + dt
-        if esp_accum < 0.05 then return end
-        esp_accum = 0
-
-        if not cfg.esp then return end
+        if not cfg.esp then
+            for _, hl in pairs(esp_hl) do hl.Enabled = false end
+            for _, d in pairs(esp_drawings) do
+                d.line.Visible = false; d.name.Visible = false; d.dist.Visible = false
+            end
+            return
+        end
 
         local vp_size = Camera.ViewportSize
         local cam_pos = Camera.CFrame.Position
@@ -1308,20 +1375,22 @@ local ok, err = pcall(function()
                 end
             end
         end
-    end)
+    end))
 
     local function get_target()
-        local center = Camera.ViewportSize / 2
+        local center = aim_origin()
         local cam_pos = Camera.CFrame.Position
         local cam_look = Camera.CFrame.LookVector
         local my_char = LP.Character
-        local my_pos = my_char and my_char:FindFirstChild("HumanoidRootPart") and my_char.HumanoidRootPart.Position
-        if not my_pos then return nil end
+        local my_root = my_char and (my_char:FindFirstChild("HumanoidRootPart") or my_char.PrimaryPart)
+        if not my_root then return nil end
+        local my_pos = my_root.Position
+        local fov_limit = cfg.wall_pierce and math.max(cfg.fov_radius, cfg.wall_pierce_fov) or cfg.fov_radius
         local best, best_score, best_plr = nil, math.huge, nil
         for _, plr in ipairs(Players:GetPlayers()) do
             if is_enemy(plr) and alive(plr) then
                 local ch = plr.Character
-                local part = ch:FindFirstChild(cfg.target_part) or ch:FindFirstChild("Head")
+                local part = ch:FindFirstChild(cfg.target_part) or ch:FindFirstChild("Head") or ch:FindFirstChild("HumanoidRootPart")
                 if part and part:IsA("BasePart") then
                     local dist3d = (part.Position - my_pos).Magnitude
                     if dist3d >= cfg.aimbot_min_dist and dist3d <= cfg.aimbot_max_dist then
@@ -1330,14 +1399,12 @@ local ok, err = pcall(function()
                             local sp, on = Camera:WorldToViewportPoint(part.Position)
                             if on and sp.Z > 0 then
                                 local fov_dist = (Vector2.new(sp.X, sp.Y) - center).Magnitude
-                                if fov_dist < cfg.fov_radius and (not cfg.wall_check or los_clear(plr, part)) then
+                                local visible_ok = cfg.wall_pierce or (not cfg.wall_check) or los_clear(plr, part)
+                                if fov_dist < fov_limit and visible_ok then
                                     local score
                                     if cfg.aimbot_priority == "Closest" then score = dist3d
                                     elseif cfg.aimbot_priority == "FOV" then score = fov_dist
-                                    else
-                                        local fov_norm = fov_dist / math.max(cfg.fov_radius, 1)
-                                        score = dist3d + fov_norm * cfg.aimbot_angle_weight
-                                    end
+                                    else score = dist3d + (fov_dist / math.max(fov_limit, 1)) * cfg.aimbot_angle_weight end
                                     if score < best_score then best_score = score; best = part; best_plr = plr end
                                 end
                             end
@@ -1349,135 +1416,292 @@ local ok, err = pcall(function()
         return best, best_plr
     end
 
-    local function get_nearest_enemy()
-        local my_char = LP.Character
-        if not my_char then return nil end
-        local my_hrp = my_char:FindFirstChild("HumanoidRootPart")
-        if not my_hrp then return nil end
-        local best, best_d = nil, cfg.tp_max_dist
+    -- ================= TP AIM (heartbeat, à prova de falha) =================
+    local tp = { target = nil, t0 = 0, active_t = 0, head = nil }
+
+    local function tp_valid(plr)
+        if not plr or plr == LP or not plr.Parent then return false end
+        if not is_enemy(plr) or not alive(plr) then return false end
+        local ch = plr.Character
+        local head = ch:FindFirstChild("Head")
+        local hrp = ch:FindFirstChild("HumanoidRootPart")
+        if not head or not hrp or not head:IsA("BasePart") then return false end
+        if head.Position.Y < -50 then return false end
+        if cfg.tp_only_grounded then
+            local h = ch:FindFirstChildOfClass("Humanoid")
+            if h and h.FloorMaterial == Enum.Material.Air then return false end
+            if hrp.AssemblyLinearVelocity.Y < -50 then return false end
+        end
+        return true
+    end
+
+    local function tp_pick()
+        local my = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+        if not my then return nil end
+        local best, bd = nil, cfg.tp_max_dist
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if tp_valid(plr) then
+                local d = (plr.Character.HumanoidRootPart.Position - my.Position).Magnitude
+                if d < bd then bd = d; best = plr end
+            end
+        end
+        return best
+    end
+
+    local function tp_tick(dt)
+        local manual = cfg.tp_aim and (rmb_down or (cfg.mobile_aim and touch_active))
+        if not (cfg.tp_auto or manual) then tp.target = nil; return end
+        local char = LP.Character
+        local my_hrp = char and char:FindFirstChild("HumanoidRootPart")
+        local my_hum = char and char:FindFirstChildOfClass("Humanoid")
+        if not my_hrp or not my_hum or my_hum.Health <= 0 then return end
+
+        if my_hum.FloorMaterial ~= Enum.Material.Air and my_hrp.Position.Y > -50 then
+            last_safe_pos = my_hrp.Position
+        end
+        if my_hrp.Position.Y < -100 then
+            my_hrp.CFrame = CFrame.new(last_safe_pos + Vector3.new(0, 5, 0))
+        end
+
+        local now = os.clock()
+        local need = (not tp_valid(tp.target))
+            or (cfg.tp_cycle_rate > 0 and now - tp.t0 > cfg.tp_cycle_rate)
+        if need then
+            local nxt = tp_pick()
+            if nxt then tp.target = nxt; tp.t0 = now
+            elseif not tp_valid(tp.target) then tp.target = nil end
+        end
+        local tgt = tp.target
+        if not tgt then return end
+
+        local ch = tgt.Character
+        local head = ch:FindFirstChild("Head")
+        local hrp = ch:FindFirstChild("HumanoidRootPart")
+        if not head or not hrp then tp.target = nil; return end
+
+        local dest
+        if cfg.tp_pos == "Atrás" then
+            local base = hrp.Position - hrp.CFrame.LookVector * cfg.tp_height
+            dest = Vector3.new(base.X, head.Position.Y, base.Z)
+        else
+            dest = head.Position + Vector3.new(0, cfg.tp_height, 0)
+        end
+
+        local cf = my_hrp.CFrame
+        if cfg.tp_smooth then
+            local dur = math.max((cfg.tp_smooth_ms or 120) / 1000, 0.03)
+            local a = math.clamp(dt / dur, 0, 1)
+            my_hrp.CFrame = CFrame.new(cf.Position:Lerp(dest, a)) * cf.Rotation
+        else
+            my_hrp.CFrame = CFrame.new(dest) * cf.Rotation
+        end
+        my_hrp.AssemblyLinearVelocity = Vector3.zero
+        my_hrp.AssemblyAngularVelocity = Vector3.zero
+
+        tp.active_t = now; tp.head = head
+        if cfg.tp_autofire then try_fire() end
+    end
+
+    -- ================= SILENT AIM =================
+    local function pick_silent()
+        local origin = aim_origin()
+        local best, bd = nil, cfg.silent_fov
         for _, plr in ipairs(Players:GetPlayers()) do
             if is_enemy(plr) and alive(plr) then
                 local ch = plr.Character
-                local hrp = ch:FindFirstChild("HumanoidRootPart")
-                local h = ch:FindFirstChildOfClass("Humanoid")
-                if hrp and h and h.Health > 0 and hrp.Position.Y > -50 then
-                    local d = (hrp.Position - my_hrp.Position).Magnitude
-                    if d < best_d then best_d = d; best = plr end
+                local part = ch:FindFirstChild(cfg.silent_part) or ch:FindFirstChild("Head") or ch:FindFirstChild("HumanoidRootPart")
+                if part and part:IsA("BasePart") then
+                    local sp, on = Camera:WorldToViewportPoint(part.Position)
+                    if on and sp.Z > 0 then
+                        local d = (Vector2.new(sp.X, sp.Y) - origin).Magnitude
+                        if d < bd and (not cfg.silent_wallcheck or los_clear(plr, part)) then
+                            bd = d; best = part
+                        end
+                    end
                 end
             end
         end
         return best
     end
 
-    local tp_running = false
-    local function do_tp_aim(tplr)
-        if not tplr or not tplr.Character then return false end
-        local tgt_head = tplr.Character:FindFirstChild("Head")
-        local tgt_hrp = tplr.Character:FindFirstChild("HumanoidRootPart")
-        local tgt_hum = tplr.Character:FindFirstChildOfClass("Humanoid")
-        if not tgt_head or not tgt_head:IsA("BasePart") then return false end
-        if not tgt_hrp or not tgt_hum or tgt_hum.Health <= 0 then return false end
-        if tgt_head.Position.Y < -50 then return false end
-        if cfg.tp_only_grounded then
-            if tgt_hum.FloorMaterial == Enum.Material.Air then return false end
-            if tgt_hrp.AssemblyLinearVelocity.Y < -50 then return false end
-        end
-        local my_char = LP.Character
-        if not my_char then return false end
-        local my_hrp = my_char:FindFirstChild("HumanoidRootPart")
-        local my_hum = my_char:FindFirstChildOfClass("Humanoid")
-        if not my_hrp or not my_hum then return false end
-        if my_hum.FloorMaterial ~= Enum.Material.Air and my_hrp.Position.Y > -50 then
-            last_safe_pos = my_hrp.Position
-        end
-        local dy = tgt_head.Position.Y - my_hrp.Position.Y
-        if dy < -80 then return false end
+    local function update_silent()
+        S.cam = Camera
+        S.on = (cfg.silent_aim or cfg.silent_remote) and genv.LOKI_HOOKED == true
+        S.remote = cfg.silent_remote
+        S.always = cfg.silent_always
+        if not (cfg.silent_aim or cfg.silent_remote) then S.target = nil; return end
         local now = os.clock()
-        if now - last_tp_t > 0.15 then
-            last_tp_t = now
-            local dest = CFrame.new(tgt_head.Position + Vector3.new(0, 3.5, 0))
-            if cfg.tp_smooth then
-                if not tp_running then
-                    tp_running = true
-                    task.spawn(function()
-                        local start_cf = my_hrp.CFrame
-                        -- tp_smooth_ms em ms → converter para segundos
-                        local duration = (cfg.tp_smooth_ms or 120) / 1000
-                        local steps = math.floor(duration / 0.03)
-                        if steps < 2 then steps = 2 end
-                        for i = 1, steps do
-                            if not my_hrp.Parent or not my_char.Parent then break end
-                            local alpha = i / steps
-                            my_hrp.CFrame = start_cf:Lerp(dest, alpha)
-                            RunService.RenderStepped:Wait()
-                        end
-                        tp_running = false
-                    end)
-                end
-            else
-                pcall(function() my_hrp.CFrame = dest end)
-            end
+        if now - S.roll_t > 0.2 then
+            S.roll_t = now
+            S.hit = math.random(1, 100) <= cfg.silent_hitchance
         end
-        pcall(function() my_hrp.AssemblyLinearVelocity = Vector3.zero; my_hrp.AssemblyAngularVelocity = Vector3.zero end)
-        if Camera.CameraType ~= Enum.CameraType.Scriptable then Camera.CameraType = Enum.CameraType.Scriptable end
-        local cam_origin = my_hrp.Position + Vector3.new(0, 1.5, 0)
-        pcall(function() Camera.CFrame = CFrame.new(cam_origin, tgt_head.Position) end)
-        return true
+        local part = S.hit and pick_silent() or nil
+        S.target = part
+        if part then
+            local pos = part.Position
+            S.pos = pos
+            local sp = Camera:WorldToViewportPoint(pos)
+            S.vp = Vector2.new(sp.X, sp.Y)
+            local sc = Camera:WorldToScreenPoint(pos)
+            S.sc = Vector2.new(sc.X, sc.Y)
+        end
     end
 
-    RunService:BindToRenderStep("LOKI_AIM", Enum.RenderPriority.Camera.Value + 1, function(dt)
-        if intro_active then return end
-        local trigger = rmb_down or (cfg.mobile_aim and touch_active)
-        if cfg.tp_auto then
-            local now = os.clock()
-            if not tp_current_target or not alive(tp_current_target) or (now - tp_target_start > cfg.tp_cycle_rate) then
-                tp_current_target = get_nearest_enemy(); tp_target_start = now
+    local function owner_of(inst)
+        local cur = inst
+        while cur and cur ~= Workspace do
+            local p = Players:GetPlayerFromCharacter(cur)
+            if p then return p end
+            cur = cur.Parent
+        end
+        return nil
+    end
+
+    local SHOT_WORDS = { "shoot", "fire", "hit", "damage", "bullet", "gun", "weapon", "shot", "attack" }
+    local function name_is_shot(n)
+        n = string.lower(n)
+        for _, w in ipairs(SHOT_WORDS) do
+            if string.find(n, w, 1, true) then return true end
+        end
+        return false
+    end
+
+    -- origem plausível de tiro: perto da câmera ou da cabeça, raio longo
+    S.shot_origin = function(o, d)
+        if d.Magnitude < 60 then return false end
+        if (o - Camera.CFrame.Position).Magnitude < 15 then return true end
+        local ch = LP.Character
+        local hd = ch and ch:FindFirstChild("Head")
+        return hd ~= nil and (o - hd.Position).Magnitude < 15
+    end
+    S.redirect = function(o, d)
+        local to = S.pos - o
+        if to.Magnitude < 0.1 then return d end
+        return to.Unit * math.max(d.Magnitude, to.Magnitude + 5)
+    end
+    S.fix_remote = function(remote, a, n)
+        local win = S.always or os.clock() < S.fire_t
+        local cam_pos = Camera.CFrame.Position
+        local changed = false
+        local enemy_pos
+        for i = 1, n do
+            local v = a[i]
+            if typeof(v) == "Instance" then
+                local p = owner_of(v)
+                if p and p ~= LP and is_enemy(p) then
+                    if v:IsA("BasePart") then
+                        enemy_pos = v.Position; a[i] = S.target; changed = true
+                    elseif v:IsA("Model") then
+                        enemy_pos = v:GetPivot().Position; a[i] = S.target.Parent; changed = true
+                    end
+                end
             end
-            if tp_current_target and do_tp_aim(tp_current_target) then return end
         end
-        if cfg.tp_aim and trigger then
-            local tplr = get_nearest_enemy()
-            if tplr and do_tp_aim(tplr) then return end
+        local by_name = win and name_is_shot(remote.Name)
+        if enemy_pos or by_name then
+            for i = 1, n do
+                local v = a[i]
+                local tv = typeof(v)
+                if tv == "Vector3" then
+                    if (enemy_pos and (v - enemy_pos).Magnitude < 40)
+                        or (not enemy_pos and (v - cam_pos).Magnitude > 25) then
+                        a[i] = S.pos; changed = true
+                    end
+                elseif tv == "CFrame" then
+                    local pv = v.Position
+                    if (enemy_pos and (pv - enemy_pos).Magnitude < 40)
+                        or (not enemy_pos and (pv - cam_pos).Magnitude > 25) then
+                        a[i] = CFrame.new(S.pos); changed = true
+                    end
+                end
+            end
         end
-        if not (cfg.aimbot and trigger) then return end
+        return changed
+    end
+
+    -- ================= BIND DE CÂMERA / AIMBOT =================
+    local mm_rem = Vector2.zero
+    local cam_locked = false
+    pcall(function() RunService:UnbindFromRenderStep("LOKI_AIM") end)
+    RunService:BindToRenderStep("LOKI_AIM", Enum.RenderPriority.Last.Value, function(dt)
+        Camera = Workspace.CurrentCamera or Camera
+        if intro_active then return end
+
+        -- câmera do TP: olha pra cabeça do alvo enquanto o TP está ativo
+        if tp.head and tp.head.Parent and os.clock() - tp.active_t < 0.2 then
+            local my = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+            if my then
+                local from = my.Position + Vector3.new(0, 1.5, 0)
+                if (tp.head.Position - from).Magnitude > 0.1 then
+                    cam_locked = true
+                    if Camera.CameraType ~= Enum.CameraType.Scriptable then Camera.CameraType = Enum.CameraType.Scriptable end
+                    Camera.CFrame = CFrame.lookAt(from, tp.head.Position)
+                    return
+                end
+            end
+        end
+        if cam_locked then
+            cam_locked = false
+            if Camera.CameraType == Enum.CameraType.Scriptable then Camera.CameraType = Enum.CameraType.Custom end
+        end
+
+        local trigger
+        if cfg.aim_mode == "Sempre" then trigger = true
+        elseif cfg.aim_mode == "LMB" then trigger = lmb_down or (cfg.mobile_aim and touch_active)
+        else trigger = rmb_down or (cfg.mobile_aim and touch_active) end
+
+        if not (cfg.aimbot and trigger) then mm_rem = Vector2.zero; return end
         local target = get_target()
         if not target then return end
-        local tpos = target.CFrame.Position
+
+        local tpos = target.Position
         if cfg.prediction then
             local vel = target.AssemblyLinearVelocity
             if vel.Magnitude > 0.5 then
-                local dist = (tpos - Camera.CFrame.Position).Magnitude
-                local travel_time = dist / 2000
-                tpos = tpos + vel * travel_time
+                tpos = tpos + vel * ((tpos - Camera.CFrame.Position).Magnitude / 2000)
             end
         end
-        if cfg.aim_jitter then 
-            tpos = tpos + Vector3.new((math.random() - 0.5) * 0.05, (math.random() - 0.5) * 0.05, (math.random() - 0.5) * 0.05) 
+        if cfg.aim_jitter then
+            tpos = tpos + Vector3.new((math.random() - 0.5) * 0.05, (math.random() - 0.5) * 0.05, (math.random() - 0.5) * 0.05)
         end
         local alpha = math.clamp((dt * 60) / math.max(cfg.smoothing, 1), 0.05, 1)
-        if mousemoverel then
+
+        local use_mouse = (cfg.aim_method == "Mouse") or (cfg.aim_method == "Auto" and mousemoverel ~= nil)
+        if use_mouse and mousemoverel then
             local sp, on = Camera:WorldToViewportPoint(tpos)
             if on and sp.Z > 0 then
-                local center = Camera.ViewportSize / 2
-                local delta = Vector2.new(sp.X, sp.Y) - center
-                if delta.Magnitude > 0.5 then pcall(mousemoverel, delta.X * alpha, delta.Y * alpha) end
+                local delta = Vector2.new(sp.X, sp.Y) - aim_origin()
+                if delta.Magnitude > 0.5 then
+                    local ax, ay = delta.X * alpha + mm_rem.X, delta.Y * alpha + mm_rem.Y
+                    local ix, fx = math.modf(ax)
+                    local iy, fy = math.modf(ay)
+                    mm_rem = Vector2.new(fx, fy)
+                    if ix ~= 0 or iy ~= 0 then pcall(mousemoverel, ix, iy) end
+                end
             end
         else
             local cam_pos = Camera.CFrame.Position
-            local currentLook = Camera.CFrame.LookVector
-            local targetDir = (tpos - cam_pos).Unit
-            local newDir = currentLook:Lerp(targetDir, alpha)
+            local newDir = Camera.CFrame.LookVector:Lerp((tpos - cam_pos).Unit, alpha)
             Camera.CFrame = CFrame.lookAt(cam_pos, cam_pos + newDir)
         end
     end)
 
-    RunService.Heartbeat:Connect(function()
+    -- ================= HEARTBEAT ÚNICO (tp + silent + auto fire) =================
+    local last_err = 0
+    local function guarded(name, fn, dt)
+        local okf, e = pcall(fn, dt)
+        if not okf and os.clock() - last_err > 3 then
+            last_err = os.clock()
+            log_event(name .. ": " .. string.sub(tostring(e), 1, 70))
+        end
+    end
+    track(RunService.Heartbeat:Connect(function(dt)
+        Camera = Workspace.CurrentCamera or Camera
         if intro_active then return end
-        if not cfg.auto_fire then return end
-        local trigger = lmb_down or touch_active
-        if not trigger then return end
-        try_fire()
-    end)
+        guarded("tp", tp_tick, dt)
+        guarded("silent", update_silent, dt)
+        if cfg.auto_fire and (lmb_down or touch_active) then guarded("fire", try_fire, dt) end
+    end))
 
     LP.Idled:Connect(function()
         if cfg.anti_afk then
@@ -1536,15 +1760,89 @@ local ok, err = pcall(function()
 
     Players.PlayerRemoving:Connect(function(plr)
         if esp_hl[plr] then pcall(function() esp_hl[plr]:Destroy() end); esp_hl[plr] = nil end
-        if esp_drawings[plr] then 
+        if esp_drawings[plr] then
             pcall(function() esp_drawings[plr].line:Remove() end)
             pcall(function() esp_drawings[plr].name:Remove() end)
             pcall(function() esp_drawings[plr].dist:Remove() end)
-            esp_drawings[plr] = nil 
+            esp_drawings[plr] = nil
         end
         los_cache[plr] = nil
         killer_marks[plr] = nil
+        if tp.target == plr then tp.target = nil end
+        if last_attacker == plr then last_attacker = nil end
     end)
+
+    -- ================= HOOKS (silent aim / bala mágica) =================
+    if not genv.LOKI_HOOKED and hookmetamethod and getnamecallmethod and checkcaller then
+        local nc = newcclosure or function(f) return f end
+        local okh = pcall(function()
+            local old_nc, old_idx
+            old_nc = hookmetamethod(game, "__namecall", nc(function(self, ...)
+                local s = genv.LOKI_S
+                if not s or not s.on or not s.target or s.busy or checkcaller() then
+                    return old_nc(self, ...)
+                end
+                local method = getnamecallmethod()
+                local n = select("#", ...)
+                local a
+                local changed = false
+                local active = s.always or os.clock() < s.fire_t
+
+                if active then
+                    if self == s.ws and (method == "Raycast" or method == "FindPartOnRay"
+                        or method == "FindPartOnRayWithIgnoreList" or method == "FindPartOnRayWithWhitelist") then
+                        a = { ... }
+                        s.busy = true
+                        pcall(function()
+                            if method == "Raycast" then
+                                local o, d = a[1], a[2]
+                                if typeof(o) == "Vector3" and typeof(d) == "Vector3" and s.shot_origin(o, d) then
+                                    a[2] = s.redirect(o, d); changed = true
+                                end
+                            else
+                                local r = a[1]
+                                if typeof(r) == "Ray" and s.shot_origin(r.Origin, r.Direction) then
+                                    a[1] = Ray.new(r.Origin, s.redirect(r.Origin, r.Direction)); changed = true
+                                end
+                            end
+                        end)
+                        s.busy = false
+                    elseif self == s.cam and s.vp
+                        and (method == "ViewportPointToRay" or method == "ScreenPointToRay") then
+                        a = { ... }
+                        local p = (method == "ViewportPointToRay") and s.vp or s.sc
+                        a[1] = p.X; a[2] = p.Y; changed = true
+                    end
+                end
+
+                if not changed and s.remote and (method == "FireServer" or method == "InvokeServer") then
+                    a = { ... }
+                    s.busy = true
+                    local okc, res = pcall(s.fix_remote, self, a, n)
+                    s.busy = false
+                    changed = (okc and res) and true or false
+                end
+
+                setnamecallmethod(method)
+                if changed then return old_nc(self, unpack(a, 1, n)) end
+                return old_nc(self, ...)
+            end))
+
+            old_idx = hookmetamethod(game, "__index", nc(function(self, key)
+                if key == "Hit" or key == "Target" then
+                    local s = genv.LOKI_S
+                    if s and s.on and s.target and self == s.mouse and not checkcaller()
+                        and (s.always or os.clock() < s.fire_t) then
+                        if key == "Hit" then return CFrame.new(s.pos) end
+                        return s.target
+                    end
+                end
+                return old_idx(self, key)
+            end))
+        end)
+        genv.LOKI_HOOKED = okh and true or false
+    end
+    if not genv.LOKI_HOOKED then log_event("hooks indisponíveis: silent desligado") end
 
     -- INTRO
     local intro = Instance.new("Frame")
@@ -1599,7 +1897,7 @@ local ok, err = pcall(function()
     intro_branch(Vector2.new(250, 250), Vector2.new(1, -0.2), 16, 4)
 
     local letters = {}
-    local word = {"L", "O", "K", "I"}
+    local word = { "L", "O", "K", "I" }
     local letter_spacing = 100
     local start_x_letters = -(#word - 1) * letter_spacing / 2
     for i, ch in ipairs(word) do
@@ -1789,12 +2087,35 @@ local ok, err = pcall(function()
         end
 
         task.wait(0.7)
-        intro:Destroy()
-        intro_active = false
-        switch_tab("VISUAL")
-        open_menu()
-        play_sfx("ui_click", 0.5, 1.4)
+        if intro_active then
+            intro:Destroy()
+            intro_active = false
+            switch_tab("VISUAL")
+            open_menu()
+            play_sfx("ui_click", 0.5, 1.4)
+        end
     end)
+
+    -- failsafe: se a intro falhar, libera tudo depois de 10s
+    task.delay(10, function()
+        if intro_active then
+            intro_active = false
+            pcall(function() intro:Destroy() end)
+            switch_tab("VISUAL")
+            open_menu()
+        end
+    end)
+
+    genv.LOKI_CLEAN = function()
+        S.on = false; S.target = nil
+        for _, c in ipairs(conns) do pcall(function() c:Disconnect() end) end
+        pcall(function() RunService:UnbindFromRenderStep("LOKI_AIM") end)
+        for _, d in pairs(esp_drawings) do
+            for _, o in pairs(d) do pcall(function() o:Remove() end) end
+        end
+        pcall(function() esp_folder:Destroy() end)
+        pcall(function() gui:Destroy() end)
+    end
 
     print("[LOKI " .. LOKI_VERSION .. "] DONE")
 end)
